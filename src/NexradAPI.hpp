@@ -15,6 +15,27 @@ struct SampleMetaData
     size_t size;
 };
 
+struct ArchiveIIHeader
+{
+    char filename[9];
+    char extensionNumber[3];
+    uint32_t date;
+    uint32_t time;
+    char radar[4];
+};
+
+struct CompressedRecord
+{
+    int32_t compresssedSize;
+    std::vector<uint8_t> data;
+};
+
+struct ArchiveII
+{
+    ArchiveIIHeader header;
+    std::vector<CompressedRecord> records;
+};
+
 class NexradAPI
 {
 public:
@@ -34,7 +55,7 @@ public:
      */
     std::vector<SampleMetaData> &ListSamples();
 
-    std::string GetSample(SampleMetaData meta);
+    ArchiveII GetSample(SampleMetaData meta);
 
 private:
     SampleMetaData ParseSampleMeta(tinyxml2::XMLElement *element);

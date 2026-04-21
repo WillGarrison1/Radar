@@ -12,30 +12,22 @@
 
 static std::string radarName = "KLSX";
 
+uint32_t ntohl(uint32_t data)
+{
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    return ((data & 0xff) << 24) |
+           ((data & 0xff00) << 8) |
+           ((data & 0xff0000) >> 8) |
+           ((data & 0xff000000) >> 24);
+#else
+    return data;
+#endif
+}
+
 NexradAPI::NexradAPI()
 {
     Update();
 }
-
-struct ArchiveIIHeader
-{
-    char filename[9];
-    char extensionNumber[3];
-    uint32_t date;
-    uint32_t time;
-    char radar[4];
-};
-
-struct CompressedRecord
-{
-
-};
-
-struct ArchiveII
-{
-    ArchiveIIHeader header;
-    CompressedRecord metadataRecord;
-};
 
 NexradAPI::~NexradAPI() {}
 
@@ -150,7 +142,7 @@ std::vector<SampleMetaData> &NexradAPI::ListSamples()
     return radarSamplesMeta;
 }
 
-std::string NexradAPI::GetSample(SampleMetaData meta)
+ArchiveII NexradAPI::GetSample(SampleMetaData meta)
 {
     static std::string url = "https://unidata-nexrad-level2.s3.amazonaws.com/" + meta.key;
     auto result = cpr::Get(cpr::Url{url});
@@ -159,15 +151,48 @@ std::string NexradAPI::GetSample(SampleMetaData meta)
         throw std::runtime_error("Failed to get file!");
     }
 
-    std::istringstream ss(result.text);
-    bxz::istream decompressed(ss.rdbuf(), bxz::z);
+    ArchiveII archive;
 
-    std::string decompressedData;
-    decompressed >> decompressedData;
+    const char *data = result.text.c_str();
 
-    std::ofstream outFile("out");
-    outFile << decompressedData;
-    outFile.close();
+    std::memcpy(&archive.header, data, sizeof(archive.header));
 
-    return decompressedData;
+    archive.header.date = ntohl(archive.header.date);
+    archive.header.time = ntohl(archive.header.time);
+
+    const char *current = data + sizeof(ArchiveIIHeader);
+
+    while (current - data < result.text.length())
+    {
+        CompressedRecord &record = archive.records.emplace_back();
+        record.compresssedSize = ntohl(*reinterpret_cast<const uint32_t *>(current));
+        current += 4;
+
+        size_t actualSize = std::abs(record.compresssedSize); // apparently size can be negative, in this case just take the `abs` of it
+        std::string_view recordData(current, actualSize);
+        std::istringstream sstream((std::string)recordData);
+
+        bxz::istream decompressor(sstream.rdbuf(), bxz::bz2);
+
+        if (sstream.fail())
+        {
+            std::cerr << "Failed to decompress!!" << std::endl;
+            continue;
+        }
+
+        record.data.clear();
+        record.data.reserve(100 * 1024);
+
+        char chunk[8192];
+        while (decompressor.read(chunk, sizeof(chunk)) || decompressor.gcount() > 0)
+        {
+            record.data.insert(record.data.end(), chunk, chunk + decompressor.gcount());
+        }
+
+        std::cout << "Size: " << record.data.size() << std::endl;
+
+        current += actualSize;
+    }
+
+    return archive;
 }
