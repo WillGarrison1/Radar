@@ -12,13 +12,23 @@
 
 static std::string radarName = "KLSX";
 
-uint32_t ntohl(uint32_t data)
+uint32_t ToSysOrderL(uint32_t data)
 {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
     return ((data & 0xff) << 24) |
            ((data & 0xff00) << 8) |
            ((data & 0xff0000) >> 8) |
            ((data & 0xff000000) >> 24);
+#else
+    return data;
+#endif
+}
+
+uint16_t ToSysOrderS(uint16_t data)
+{
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    return ((data & 0xff) << 8) |
+           ((data & 0xff00) >> 8);
 #else
     return data;
 #endif
@@ -106,7 +116,7 @@ SampleMetaData NexradAPI::ParseSampleMeta(tinyxml2::XMLElement *meta)
     sample.size = std::stoull(size->GetText());
     std::tm tm{};
 
-    int firstUnderscore = sample.key.find("_");
+    size_t firstUnderscore = sample.key.find("_");
     if (firstUnderscore == std::string::npos)
     {
         throw std::runtime_error("Invalid format");
@@ -124,8 +134,8 @@ SampleMetaData NexradAPI::ParseSampleMeta(tinyxml2::XMLElement *meta)
 
     auto tp = std::chrono::sys_days{
                   std::chrono::year{tm.tm_year + 1900} /
-                  std::chrono::month{tm.tm_mon + 1} /
-                  std::chrono::day{tm.tm_mday}} +
+                  std::chrono::month{static_cast<uint32_t>(tm.tm_mon + 1)} /
+                  std::chrono::day{static_cast<uint32_t>(tm.tm_mday)}} +
               std::chrono::hours{tm.tm_hour} + std::chrono::minutes{tm.tm_min} + std::chrono::seconds{tm.tm_sec};
     auto seconds = std::chrono::duration_cast<std::chrono::seconds>(
         tp.time_since_epoch());
@@ -144,7 +154,7 @@ std::vector<SampleMetaData> &NexradAPI::ListSamples()
 
 ArchiveII NexradAPI::GetSample(SampleMetaData meta)
 {
-    static std::string url = "https://unidata-nexrad-level2.s3.amazonaws.com/" + meta.key;
+    std::string url = "https://unidata-nexrad-level2.s3.amazonaws.com/" + meta.key;
     auto result = cpr::Get(cpr::Url{url});
     if (result.status_code != 200)
     {
@@ -157,15 +167,18 @@ ArchiveII NexradAPI::GetSample(SampleMetaData meta)
 
     std::memcpy(&archive.header, data, sizeof(archive.header));
 
-    archive.header.date = ntohl(archive.header.date);
-    archive.header.time = ntohl(archive.header.time);
+    archive.header.date = ToSysOrderL(archive.header.date);
+    archive.header.time = ToSysOrderL(archive.header.time);
 
     const char *current = data + sizeof(ArchiveIIHeader);
 
+    auto start = std::chrono::steady_clock::now();
+
     while (current - data < result.text.length())
     {
+        auto recordStart = std::chrono::steady_clock::now();
         CompressedRecord &record = archive.records.emplace_back();
-        record.compresssedSize = ntohl(*reinterpret_cast<const uint32_t *>(current));
+        record.compresssedSize = ToSysOrderL(*reinterpret_cast<const uint32_t *>(current));
         current += 4;
 
         size_t actualSize = std::abs(record.compresssedSize); // apparently size can be negative, in this case just take the `abs` of it
@@ -183,15 +196,44 @@ ArchiveII NexradAPI::GetSample(SampleMetaData meta)
         record.data.clear();
         record.data.reserve(100 * 1024);
 
-        char chunk[8192];
+        char chunk[32768];
         while (decompressor.read(chunk, sizeof(chunk)) || decompressor.gcount() > 0)
         {
             record.data.insert(record.data.end(), chunk, chunk + decompressor.gcount());
         }
 
-        std::cout << "Size: " << record.data.size() << std::endl;
+        // parse message headers
+        const uint8_t *messageCurrent = record.data.data();
+        const uint8_t *recordEnd = record.data.data() + record.data.size();
+        while (messageCurrent + 12 + sizeof(MessageHeader) <= recordEnd)
+        {
+            auto &message = record.messages.emplace_back();
+            message.header = *reinterpret_cast<const MessageHeader *>(messageCurrent + 12);
+
+            auto &header = message.header;
+            header.date = ToSysOrderS(header.date);
+            header.num_segs = ToSysOrderS(header.num_segs);
+            header.seq_num = ToSysOrderS(header.seq_num);
+            header.size = ToSysOrderS(header.size) * 2;
+            header.timeMS = ToSysOrderL(header.timeMS);
+            message.index = static_cast<size_t>(messageCurrent - record.data.data());
+
+            if (header.type == 31 || header.type == 29)
+            {
+                messageCurrent += header.size + 12;
+            }
+            else
+            {
+                messageCurrent += 2432;
+            }
+        }
 
         current += actualSize;
+
+        auto current = std::chrono::steady_clock::now();
+        std::cout << "Time: " << std::chrono::duration_cast<std::chrono::milliseconds>((current - recordStart)).count() << "ms Total: "
+                  << std::chrono::duration_cast<std::chrono::milliseconds>((current - start)).count() << "ms"
+                  << std::endl;
     }
 
     return archive;

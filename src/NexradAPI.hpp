@@ -24,10 +24,29 @@ struct ArchiveIIHeader
     char radar[4];
 };
 
+struct MessageHeader
+{
+    uint16_t size;
+    uint8_t channel;
+    uint8_t type;
+    uint16_t seq_num;
+    uint16_t date;
+    uint32_t timeMS;
+    uint16_t num_segs;
+    uint16_t seg_num;
+};
+
+struct Message
+{
+    MessageHeader header;
+    size_t index;
+};
+
 struct CompressedRecord
 {
     int32_t compresssedSize;
     std::vector<uint8_t> data;
+    std::vector<Message> messages;
 };
 
 struct ArchiveII
