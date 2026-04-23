@@ -1,11 +1,10 @@
 #include "StormProcessor.hpp"
-#include <thread>
-#include <iostream>
-#include <unordered_map>
-#include <ranges>
-#include <functional>
-#include <span>
 #include <cmath>
+#include <functional>
+#include <iostream>
+#include <ranges>
+#include <span>
+#include <thread>
 
 // Message 31 is the message with radial data
 struct Message31Header
@@ -45,27 +44,6 @@ struct MomentDataBlock
     // gate data follows immediately
 };
 
-struct Gate
-{
-    float reflectivity;
-    float velocity;
-};
-
-struct Radial
-{
-    std::vector<Gate> gates;
-    uint16_t gateSize;
-    uint16_t firstGate;
-};
-
-struct VolumeScan
-{
-    /*
-        radial = radials[round(elevation*10)][rounded(azimuth*10)];
-    */
-    std::unordered_map<uint16_t, std::unordered_map<uint16_t, Radial>> radials;
-};
-
 StormProcessor::StormProcessor()
 {
     float seconds = 0.5;
@@ -102,13 +80,13 @@ std::vector<SampleTimePoint> StormProcessor::GetTimePoints()
     return list;
 }
 
-void StormProcessor::Process(SampleTimePoint timePoint)
+VolumeScan StormProcessor::Process(SampleTimePoint timePoint)
 {
     auto start = std::chrono::steady_clock::now();
     if (nexradAPI.ListSamples().empty())
     {
         std::cerr << "No samples!" << std::endl;
-        return;
+        return {};
     }
 
     auto &meta = nexradAPI.ListSamples()[0];
@@ -215,5 +193,5 @@ void StormProcessor::Process(SampleTimePoint timePoint)
 
     auto end = std::chrono::steady_clock::now();
     std::cout << "Total Time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
-    return;
+    return scan;
 }
