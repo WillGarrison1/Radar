@@ -82,7 +82,7 @@ void RadarRenderer::Update()
     // static float circleRadiuspx = 275;
     static float metersPerPixel = 100;
     static size_t elevationLayer = 0;
-    static size_t timePointIndex = 100;
+    static size_t timePointIndex = 10;
 
     SDL_SetRenderDrawColorFloat(renderer, 0.05, 0.05, 0.05, 1.0);
     SDL_RenderClear(renderer);
@@ -95,14 +95,14 @@ void RadarRenderer::Update()
     SDL_SetRenderDrawColorFloat(renderer, 1, 0, 0, 1);
 
     auto points = processor.GetTimePoints();
-    auto timePoint = points[timePointIndex];
+    auto timePoint = points[points.size() - timePointIndex - 1];
     auto &cache = processor.GetCached();
 
     if (cache.size() <= timePointIndex)
     {
         for (int i = cache.size(); i < timePointIndex + 1; i++)
         {
-            auto tp = points[i];
+            auto tp = points[points.size() - i - 1];
             std::string s = std::format("{:%Y/%m/%d-%H:%M}", tp);
             std::cout << "\rGetting record (" << i << "/" << timePointIndex << ") at time " << s;
             processor.Process(tp);
