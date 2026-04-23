@@ -118,7 +118,6 @@ void StormProcessor::Process(SampleTimePoint timePoint)
     auto archive = nexradAPI.GetSample(meta);
     queue.Push([this, archive = std::move(archive), timePoint]()
                {   
-                this->cache[timePoint] = {};
                 auto result = _Process(std::move(archive)); 
                 std::lock_guard lock(this->cacheMutex);
                 this->cache[timePoint] = result; 
