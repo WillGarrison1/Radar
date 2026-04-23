@@ -89,12 +89,17 @@ public:
     std::vector<SampleTimePoint> GetTimePoints();
     void Process(SampleTimePoint timestep);
 
+    inline std::map<SampleTimePoint, VolumeScan>& GetCached()
+    {
+        return cache;
+    }
+
 private:
     VolumeScan _Process(ArchiveII archive);
 
     std::mutex cacheMutex;
     std::map<SampleTimePoint, VolumeScan> cache;
     NexradAPI nexradAPI;
-    std::thread worker;
     TaskQueue queue;
+    std::thread worker;
 };

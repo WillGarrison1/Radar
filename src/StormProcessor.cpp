@@ -63,7 +63,6 @@ StormProcessor::~StormProcessor()
 {
     this->queue.Stop();
     this->worker.join();
-
 }
 
 void StormProcessor::Refresh()
@@ -112,8 +111,10 @@ void StormProcessor::Process(SampleTimePoint timePoint)
     auto archive = nexradAPI.GetSample(meta);
     queue.Push([this, archive = std::move(archive), timePoint]()
                {   
-                std::lock_guard lock(this->cacheMutex);    
-                this->cache[timePoint] = _Process(std::move(archive)); });
+                this->cache[timePoint] = {};
+                auto result = _Process(std::move(archive)); 
+                std::lock_guard lock(this->cacheMutex);
+                this->cache[timePoint] = result; });
     return;
 }
 

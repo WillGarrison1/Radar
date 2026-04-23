@@ -6,7 +6,7 @@
 #include <iostream>
 #include <cmath>
 
-RadarRenderer::RadarRenderer() : shouldQuit(false), renderer(nullptr), window(nullptr), cache({}), processor({})
+RadarRenderer::RadarRenderer() : shouldQuit(false), renderer(nullptr), window(nullptr), processor({})
 {
     if (!SDL_WasInit(SDL_INIT_VIDEO))
     {
@@ -80,6 +80,7 @@ void RadarRenderer::Update()
 
     auto points = processor.GetTimePoints();
     auto timePoint = points[timePointIndex];
+    auto &cache = processor.GetCached();
 
     if (cache.size() <= timePointIndex)
     {

@@ -20,7 +20,6 @@ private:
     SDL_Renderer *renderer;
     SDL_Window *window;
     bool shouldQuit;
-    std::map<SampleTimePoint, VolumeScan> cache;
 
     StormProcessor processor;
 };

@@ -140,10 +140,10 @@ std::vector<SampleMetaData> &NexradAPI::ListSamples()
 ArchiveII NexradAPI::GetSample(SampleMetaData meta)
 {
     std::string url = "https://unidata-nexrad-level2.s3.amazonaws.com/" + meta.key;
-    auto result = cpr::Get(cpr::Url{url});
-    if (result.status_code != 200)
+    auto result = cpr::Get(cpr::Url{url}, cpr::Timeout{20000});
+    if (result.status_code != 200 || result.error)
     {
-        throw std::runtime_error("Failed to get file!");
+        throw std::runtime_error("Failed to get download file!");
     }
 
     ArchiveII archive;
