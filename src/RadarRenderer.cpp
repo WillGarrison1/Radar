@@ -1,6 +1,7 @@
 #include "RadarRenderer.hpp"
 
 #include <stdexcept>
+#include <algorithm>
 #include <cmath>
 
 RadarRenderer::RadarRenderer() : shouldQuit(false), renderer(nullptr), window(nullptr)
@@ -64,24 +65,39 @@ void RadarRenderer::Update(VolumeScan &scan)
     // radius of circle is 50km
     SDL_SetRenderDrawColorFloat(renderer, 1, 0, 0, 1);
 
-    for (auto &radialEle : scan.radials)
+    auto lowestEl = std::ranges::min_element(scan.radials, {},
+                                             [](const auto &pair)
+                                             { return pair.first; });
+
+    if (lowestEl != scan.radials.end())
     {
-        for (auto &radialAzi : radialEle.second)
+        for (auto &radialAzi : lowestEl->second)
         {
             auto &radial = radialAzi.second;
             for (int i = 0; i < radial.gates.size(); i++)
             {
                 auto &gate = radial.gates[i];
-                if (gate.reflectivity > 10)
+                if (!std::isnan(gate.reflectivity) && gate.reflectivity > 15)
                 {
+                    constexpr float deg2rad = std::numbers::pi / 180.0f;
+
+                    float az = (90 - radial.trueAzimuth) * deg2rad; // convert from north orientation to math conventions
+                    float el = radial.trueElevation * deg2rad;
+
                     float dist = i * radial.gateSize + radial.firstGate;
-                    float horizDist = std::cos(radial.trueElevation) * dist;
-                    float x = std::cos(radial.trueAzimuth) * horizDist;
-                    float y = std::sin(radial.trueAzimuth) * horizDist;
+                    float horizDist = std::cos(el) * dist;
+
+                    if (horizDist > 50000)
+                        continue;
+
+                    float x = std::cos(az) * horizDist;
+                    float y = std::sin(az) * horizDist;
+
                     x *= circleRadius / 50000.0f;
                     y *= circleRadius / 50000.0f;
                     x += circleCenter.x;
                     y += circleCenter.y;
+
                     SDL_RenderPoint(renderer, x, y);
                 }
             }
