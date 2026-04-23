@@ -1,18 +1,11 @@
 #include <iostream>
 
-#include "NexradAPI.hpp"
+#include "StormProcessor.hpp"
 #include <thread>
 
 int main(int argc, char **argv)
 {
-    NexradAPI parser;
-    while (parser.ListSamples().size() < 1)
-    {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-        parser.Update();
-    }
-
-    auto archive = parser.GetSample(parser.ListSamples()[0]);
-
+    StormProcessor processor;
+    processor.Process(processor.GetTimePoints()[1]);
     return 0;
 }

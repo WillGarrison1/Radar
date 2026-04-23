@@ -12,28 +12,6 @@
 
 static std::string radarName = "KLSX";
 
-uint32_t ToSysOrderL(uint32_t data)
-{
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-    return ((data & 0xff) << 24) |
-           ((data & 0xff00) << 8) |
-           ((data & 0xff0000) >> 8) |
-           ((data & 0xff000000) >> 24);
-#else
-    return data;
-#endif
-}
-
-uint16_t ToSysOrderS(uint16_t data)
-{
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-    return ((data & 0xff) << 8) |
-           ((data & 0xff00) >> 8);
-#else
-    return data;
-#endif
-}
-
 NexradAPI::NexradAPI()
 {
     Update();
@@ -85,7 +63,9 @@ void NexradAPI::Update()
     auto radarSampleXML = sampleBucket->FirstChildElement("Contents");
     while (radarSampleXML)
     {
-        radarSamplesMeta.push_back(ParseSampleMeta(radarSampleXML));
+        auto meta = ParseSampleMeta(radarSampleXML);
+        if (!meta.key.empty())
+            radarSamplesMeta.push_back(meta);
         radarSampleXML = radarSampleXML->NextSiblingElement();
     }
 }
@@ -114,6 +94,13 @@ SampleMetaData NexradAPI::ParseSampleMeta(tinyxml2::XMLElement *meta)
 
     sample.key = key->GetText();
     sample.size = std::stoull(size->GetText());
+
+    if (*(sample.key.end() - 1) != '6')
+    {
+        std::cout << "No support for non-standard archiveII files" << std::endl;
+        return {};
+    }
+
     std::tm tm{};
 
     size_t firstUnderscore = sample.key.find("_");
@@ -172,11 +159,11 @@ ArchiveII NexradAPI::GetSample(SampleMetaData meta)
 
     const char *current = data + sizeof(ArchiveIIHeader);
 
-    auto start = std::chrono::steady_clock::now();
+    // auto start = std::chrono::steady_clock::now();
 
     while (current - data < result.text.length())
     {
-        auto recordStart = std::chrono::steady_clock::now();
+        // auto recordStart = std::chrono::steady_clock::now();
         CompressedRecord &record = archive.records.emplace_back();
         record.compresssedSize = ToSysOrderL(*reinterpret_cast<const uint32_t *>(current));
         current += 4;
@@ -196,7 +183,7 @@ ArchiveII NexradAPI::GetSample(SampleMetaData meta)
         record.data.clear();
         record.data.reserve(100 * 1024);
 
-        char chunk[32768];
+        char chunk[16384];
         while (decompressor.read(chunk, sizeof(chunk)) || decompressor.gcount() > 0)
         {
             record.data.insert(record.data.end(), chunk, chunk + decompressor.gcount());
@@ -216,7 +203,7 @@ ArchiveII NexradAPI::GetSample(SampleMetaData meta)
             header.seq_num = ToSysOrderS(header.seq_num);
             header.size = ToSysOrderS(header.size) * 2;
             header.timeMS = ToSysOrderL(header.timeMS);
-            message.index = static_cast<size_t>(messageCurrent - record.data.data());
+            message.index = static_cast<size_t>(messageCurrent - record.data.data() + sizeof(MessageHeader) + 12);
 
             if (header.type == 31 || header.type == 29)
             {
@@ -230,10 +217,10 @@ ArchiveII NexradAPI::GetSample(SampleMetaData meta)
 
         current += actualSize;
 
-        auto current = std::chrono::steady_clock::now();
-        std::cout << "Time: " << std::chrono::duration_cast<std::chrono::milliseconds>((current - recordStart)).count() << "ms Total: "
-                  << std::chrono::duration_cast<std::chrono::milliseconds>((current - start)).count() << "ms"
-                  << std::endl;
+        // auto current = std::chrono::steady_clock::now();
+        // std::cout << "Time: " << std::chrono::duration_cast<std::chrono::milliseconds>((current - recordStart)).count() << "ms Total: "
+        //           << std::chrono::duration_cast<std::chrono::milliseconds>((current - start)).count() << "ms"
+        //           << std::endl;
     }
 
     return archive;

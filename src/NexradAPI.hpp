@@ -55,6 +55,34 @@ struct ArchiveII
     std::vector<CompressedRecord> records;
 };
 
+constexpr uint32_t ToSysOrderL(uint32_t data)
+{
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    return ((data & 0xff) << 24) |
+           ((data & 0xff00) << 8) |
+           ((data & 0xff0000) >> 8) |
+           ((data & 0xff000000) >> 24);
+#else
+    return data;
+#endif
+}
+
+constexpr uint16_t ToSysOrderS(uint16_t data)
+{
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    return ((data & 0xff) << 8) |
+           ((data & 0xff00) >> 8);
+#else
+    return data;
+#endif
+}
+
+constexpr float ToSysOrderF(float f)
+{
+    uint32_t data = ToSysOrderL(*reinterpret_cast<uint32_t *>(&f));
+    return *reinterpret_cast<float *>(&data);
+}
+
 class NexradAPI
 {
 public:
