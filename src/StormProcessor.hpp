@@ -7,6 +7,7 @@
 #include <mutex>
 #include <functional>
 #include <queue>
+#include <unordered_set>
 
 struct Gate
 {
@@ -89,7 +90,7 @@ public:
     std::vector<SampleTimePoint> GetTimePoints();
     void Process(SampleTimePoint timestep);
 
-    inline std::map<SampleTimePoint, VolumeScan>& GetCached()
+    inline std::map<SampleTimePoint, VolumeScan> &GetCached()
     {
         return cache;
     }
@@ -99,6 +100,7 @@ private:
 
     std::mutex cacheMutex;
     std::map<SampleTimePoint, VolumeScan> cache;
+    std::unordered_set<uint64_t> pending;
     NexradAPI nexradAPI;
     TaskQueue queue;
     std::thread worker;

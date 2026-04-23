@@ -46,8 +46,8 @@ struct MomentDataBlock
 };
 #pragma pack()
 
-StormProcessor::StormProcessor() : queue({}), worker([&]
-                                                     { this->queue.WorkerLoop(); })
+StormProcessor::StormProcessor() : pending({}), queue({}), worker([&]
+                                                                  { this->queue.WorkerLoop(); })
 {
     float seconds = 0.5;
     while (nexradAPI.ListSamples().size() == 0 && seconds < 30)
@@ -87,6 +87,11 @@ std::vector<SampleTimePoint> StormProcessor::GetTimePoints()
 
 void StormProcessor::Process(SampleTimePoint timePoint)
 {
+    if (this->pending.contains(timePoint.time_since_epoch().count()))
+    {
+        return; // already being processed or downloaded
+    }
+
     if (nexradAPI.ListSamples().empty())
     {
         std::cerr << "No samples!" << std::endl;
@@ -108,13 +113,16 @@ void StormProcessor::Process(SampleTimePoint timePoint)
         return;
     }
 
+    pending.emplace(timePoint.time_since_epoch().count());
+
     auto archive = nexradAPI.GetSample(meta);
     queue.Push([this, archive = std::move(archive), timePoint]()
                {   
                 this->cache[timePoint] = {};
                 auto result = _Process(std::move(archive)); 
                 std::lock_guard lock(this->cacheMutex);
-                this->cache[timePoint] = result; });
+                this->cache[timePoint] = result; 
+                this->pending.erase(timePoint.time_since_epoch().count()); });
     return;
 }
 
