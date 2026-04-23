@@ -1,6 +1,6 @@
 #pragma once
 
-#include <unordered_map>
+#include <map>
 
 #include "NexradAPI.hpp"
 
@@ -24,7 +24,7 @@ struct VolumeScan
     /*
         radial = radials[elevation][azimuth];
     */
-    std::unordered_map<uint16_t, std::unordered_map<uint16_t, Radial>> radials;
+    std::map<uint16_t, std::vector<Radial>> radials;
 };
 
 class StormProcessor

@@ -50,55 +50,64 @@ void DrawCircle(SDL_Renderer *renderer, SDL_FPoint center, float radius, SDL_FCo
     SDL_RenderGeometry(renderer, nullptr, vertices, resolution + 1, indices, resolution * 3);
 }
 
+SDL_FColor GetColor(float reflectivity)
+{
+    return {
+        std::clamp(reflectivity / 60, 0.0f, 1.0f),
+        0,
+        1.0f - std::clamp(reflectivity / 60, 0.0f, 1.0f),
+        0.75};
+}
+
 void RadarRenderer::Update(VolumeScan &scan)
 {
+    static float circleRadiuspx = 275;
+    static float circleRadiusm = 100000;
+    static size_t elevationLayer = 0;
+
     SDL_SetRenderDrawColorFloat(renderer, 0.15, 0.15, 0.15, 1.0);
     SDL_RenderClear(renderer);
 
     SDL_SetRenderDrawColorFloat(renderer, 0.05, 0.05, 0.05, 1.0);
 
     SDL_FPoint circleCenter{400, 300};
-    float circleRadius = 250;
 
-    DrawCircle(renderer, circleCenter, circleRadius, {0, 0, 0, 0});
+    DrawCircle(renderer, circleCenter, circleRadiuspx, {0, 0, 0, 0});
 
     // radius of circle is 50km
     SDL_SetRenderDrawColorFloat(renderer, 1, 0, 0, 1);
 
-    auto lowestEl = std::ranges::min_element(scan.radials, {},
-                                             [](const auto &pair)
-                                             { return pair.first; });
+    auto elevationIt = scan.radials.begin();
 
-    if (lowestEl != scan.radials.end())
+    std::advance(elevationIt, elevationLayer);
+
+    if (elevationIt != scan.radials.end())
     {
-        for (auto &radialAzi : lowestEl->second)
+        for (auto &radial : elevationIt->second)
         {
-            auto &radial = radialAzi.second;
             for (int i = 0; i < radial.gates.size(); i++)
             {
                 auto &gate = radial.gates[i];
                 if (!std::isnan(gate.reflectivity) && gate.reflectivity > 15)
                 {
                     constexpr float deg2rad = std::numbers::pi / 180.0f;
-
-                    float az = (90 - radial.trueAzimuth) * deg2rad; // convert from north orientation to math conventions
-                    float el = radial.trueElevation * deg2rad;
-
-                    float dist = i * radial.gateSize + radial.firstGate;
-                    float horizDist = std::cos(el) * dist;
-
-                    if (horizDist > 50000)
+                    float dist = radial.firstGate + radial.gateSize * i;
+                    if (dist > circleRadiusm)
                         continue;
+                    float az1 = (90.0f - radial.trueAzimuth - 0.25f) * deg2rad; // half beamwidth
+                    float az2 = (90.0f - radial.trueAzimuth + 0.25f) * deg2rad;
+                    float nearDist = (dist)*circleRadiuspx / circleRadiusm;
+                    float farDist = (dist + radial.gateSize) * circleRadiuspx / circleRadiusm;
 
-                    float x = std::cos(az) * horizDist;
-                    float y = std::sin(az) * horizDist;
-
-                    x *= circleRadius / 50000.0f;
-                    y *= circleRadius / 50000.0f;
-                    x += circleCenter.x;
-                    y += circleCenter.y;
-
-                    SDL_RenderPoint(renderer, x, y);
+                    SDL_FColor color = GetColor(gate.reflectivity);
+                    SDL_Vertex verts[4] = {
+                        {{circleCenter.x + std::cos(az1) * nearDist, circleCenter.y - std::sin(az1) * nearDist}, color, {0, 0}},
+                        {{circleCenter.x + std::cos(az2) * nearDist, circleCenter.y - std::sin(az2) * nearDist}, color, {0, 0}},
+                        {{circleCenter.x + std::cos(az1) * farDist, circleCenter.y - std::sin(az1) * farDist}, color, {0, 0}},
+                        {{circleCenter.x + std::cos(az2) * farDist, circleCenter.y - std::sin(az2) * farDist}, color, {0, 0}},
+                    };
+                    int indices[] = {0, 1, 2, 1, 2, 3};
+                    SDL_RenderGeometry(renderer, nullptr, verts, 4, indices, 6);
                 }
             }
         }
@@ -112,6 +121,27 @@ void RadarRenderer::Update(VolumeScan &scan)
         if (e.type == SDL_EVENT_QUIT)
         {
             shouldQuit = true;
+        }
+        if (e.type == SDL_EVENT_KEY_DOWN)
+        {
+            if (e.key.key == SDLK_W)
+            {
+                circleRadiusm -= 1000;
+                circleRadiusm = std::clamp(circleRadiusm, 1000.0f, 150000.0f);
+            }
+            if (e.key.key == SDLK_S)
+            {
+                circleRadiusm += 1000;
+                circleRadiusm = std::clamp(circleRadiusm, 1000.0f, 150000.0f);
+            }
+            if (e.key.key == SDLK_UP)
+            {
+                elevationLayer = std::clamp(elevationLayer + 1, static_cast<size_t>(0), scan.radials.size());
+            }
+            if (e.key.key == SDLK_DOWN)
+            {
+                elevationLayer = std::clamp(elevationLayer - 1, static_cast<size_t>(0), scan.radials.size());
+            }
         }
     }
 }

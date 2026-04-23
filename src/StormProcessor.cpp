@@ -115,8 +115,7 @@ VolumeScan StormProcessor::Process(SampleTimePoint timePoint)
             header.elevation_angle = ToSysOrderF(header.elevation_angle);
             header.block_count = ToSysOrderS(header.block_count);
             uint16_t elevationI = static_cast<uint16_t>(std::round(header.elevation_angle * 2)) * 5;
-            uint16_t azimuthI = static_cast<uint16_t>(std::round(header.azimuth_angle * 2)) * 5;
-            auto &radial = scan.radials[elevationI][azimuthI];
+            auto &radial = scan.radials[elevationI].emplace_back();
 
             if (header.compression != 0)
             {
