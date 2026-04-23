@@ -26,7 +26,10 @@ int main(int argc, char **argv)
     RadarRenderer renderer;
     while (!renderer.ShouldQuit())
     {
+        auto start = std::chrono::steady_clock::now();
         renderer.Update(m);
+        auto end = std::chrono::steady_clock::now();
+        std::cout << "\r" << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms";
     }
 
     return 0;

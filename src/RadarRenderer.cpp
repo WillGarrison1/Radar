@@ -136,11 +136,11 @@ void RadarRenderer::Update(VolumeScan &scan)
             }
             if (e.key.key == SDLK_UP)
             {
-                elevationLayer = std::clamp(elevationLayer + 1, static_cast<size_t>(0), scan.radials.size());
+                elevationLayer = (elevationLayer + 1) % scan.radials.size();
             }
             if (e.key.key == SDLK_DOWN)
             {
-                elevationLayer = std::clamp(elevationLayer - 1, static_cast<size_t>(0), scan.radials.size());
+                elevationLayer = (elevationLayer - 1) % scan.radials.size();
             }
         }
     }
