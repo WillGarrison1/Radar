@@ -1,10 +1,10 @@
 #include "RadarRenderer.hpp"
 
-#include <stdexcept>
 #include <algorithm>
+#include <cmath>
 #include <format>
 #include <iostream>
-#include <cmath>
+#include <stdexcept>
 
 RadarRenderer::RadarRenderer() : shouldQuit(false), renderer(nullptr), window(nullptr), processor({})
 {
@@ -54,11 +54,27 @@ void DrawCircle(SDL_Renderer *renderer, SDL_FPoint center, float radius, SDL_FCo
 
 SDL_FColor GetColor(float reflectivity)
 {
-    return {
-        std::clamp(reflectivity / 60, 0.0f, 1.0f),
-        0,
-        1.0f - std::clamp(reflectivity / 60, 0.0f, 1.0f),
-        0.75};
+    if (reflectivity > 60)
+    {
+        return {1, 0, 1, 1};
+    }
+    if (reflectivity > 50)
+    {
+        return {1, 0, 0, 1};
+    }
+    if (reflectivity > 35)
+    {
+        return {1, 1, 0, 1};
+    }
+    if (reflectivity > 20)
+    {
+        return {0, 1, 0, 1};
+    }
+    if (reflectivity > 10)
+    {
+        return {0.3, 0.3, 1, 1};
+    }
+    return {0, 0, 0, 0};
 }
 
 void RadarRenderer::Update()
@@ -66,7 +82,7 @@ void RadarRenderer::Update()
     // static float circleRadiuspx = 275;
     static float metersPerPixel = 100;
     static size_t elevationLayer = 0;
-    static size_t timePointIndex = 25;
+    static size_t timePointIndex = 5;
 
     SDL_SetRenderDrawColorFloat(renderer, 0.05, 0.05, 0.05, 1.0);
     SDL_RenderClear(renderer);
@@ -105,7 +121,7 @@ void RadarRenderer::Update()
             for (int i = 0; i < radial.gates.size(); i++)
             {
                 auto &gate = radial.gates[i];
-                if (!std::isnan(gate.reflectivity) && gate.reflectivity > 15)
+                if (!std::isnan(gate.reflectivity) && gate.reflectivity > 10)
                 {
                     constexpr float deg2rad = std::numbers::pi / 180.0f;
                     float dist = radial.firstGate + radial.gateSize * i;

@@ -10,7 +10,7 @@
 #include <string>
 #include <tinyxml2.h>
 
-static std::string radarName = "KLSX";
+static std::string radarName = "KABR";
 
 NexradAPI::NexradAPI()
 {
