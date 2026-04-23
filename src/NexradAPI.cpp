@@ -146,6 +146,8 @@ ArchiveII NexradAPI::GetSample(SampleMetaData meta)
         throw std::runtime_error("Failed to get download file!");
     }
 
+    std::cout << "\nSize: " << result.text.size() << std::endl;
+
     ArchiveII archive;
 
     const char *data = result.text.c_str();

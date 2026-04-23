@@ -115,13 +115,18 @@ void StormProcessor::Process(SampleTimePoint timePoint)
 
     pending.emplace(timePoint.time_since_epoch().count());
 
+    auto start = std::chrono::steady_clock::now();
     auto archive = nexradAPI.GetSample(meta);
+    auto end = std::chrono::steady_clock::now();
+    std::cout << "Download took: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
     queue.Push([this, archive = std::move(archive), timePoint]()
                {   
-                this->cache[timePoint] = {};
+                auto start = std::chrono::steady_clock::now();
                 auto result = _Process(std::move(archive)); 
+                auto end = std::chrono::steady_clock::now();
+                std::cout << "Process took: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
                 std::lock_guard lock(this->cacheMutex);
-                this->cache[timePoint] = result; 
+                this->cache[timePoint] = result;
                 this->pending.erase(timePoint.time_since_epoch().count()); });
     return;
 }
