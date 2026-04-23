@@ -61,18 +61,16 @@ SDL_FColor GetColor(float reflectivity)
 
 void RadarRenderer::Update(VolumeScan &scan)
 {
-    static float circleRadiuspx = 275;
-    static float circleRadiusm = 100000;
+    // static float circleRadiuspx = 275;
+    static float metersPerPixel = 100;
     static size_t elevationLayer = 0;
 
-    SDL_SetRenderDrawColorFloat(renderer, 0.15, 0.15, 0.15, 1.0);
-    SDL_RenderClear(renderer);
-
     SDL_SetRenderDrawColorFloat(renderer, 0.05, 0.05, 0.05, 1.0);
+    SDL_RenderClear(renderer);
 
     SDL_FPoint circleCenter{400, 300};
 
-    DrawCircle(renderer, circleCenter, circleRadiuspx, {0, 0, 0, 0});
+    // DrawCircle(renderer, circleCenter, circleRadiuspx, {0, 0, 0, 0});
 
     // radius of circle is 50km
     SDL_SetRenderDrawColorFloat(renderer, 1, 0, 0, 1);
@@ -92,12 +90,12 @@ void RadarRenderer::Update(VolumeScan &scan)
                 {
                     constexpr float deg2rad = std::numbers::pi / 180.0f;
                     float dist = radial.firstGate + radial.gateSize * i;
-                    if (dist > circleRadiusm)
+                    if (dist > metersPerPixel * 400.0f * std::numbers::sqrt2)
                         continue;
                     float az1 = (90.0f - radial.trueAzimuth - 0.25f) * deg2rad; // half beamwidth
                     float az2 = (90.0f - radial.trueAzimuth + 0.25f) * deg2rad;
-                    float nearDist = (dist)*circleRadiuspx / circleRadiusm;
-                    float farDist = (dist + radial.gateSize) * circleRadiuspx / circleRadiusm;
+                    float nearDist = dist / metersPerPixel;
+                    float farDist = (dist + radial.gateSize) / metersPerPixel;
 
                     SDL_FColor color = GetColor(gate.reflectivity);
                     SDL_Vertex verts[4] = {
@@ -126,13 +124,13 @@ void RadarRenderer::Update(VolumeScan &scan)
         {
             if (e.key.key == SDLK_W)
             {
-                circleRadiusm -= 1000;
-                circleRadiusm = std::clamp(circleRadiusm, 1000.0f, 150000.0f);
+                metersPerPixel -= 10;
+                metersPerPixel = std::clamp(metersPerPixel, 10.0f, 1500.0f);
             }
             if (e.key.key == SDLK_S)
             {
-                circleRadiusm += 1000;
-                circleRadiusm = std::clamp(circleRadiusm, 1000.0f, 150000.0f);
+                metersPerPixel += 10;
+                metersPerPixel = std::clamp(metersPerPixel, 10.0f, 1500.0f);
             }
             if (e.key.key == SDLK_UP)
             {
