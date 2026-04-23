@@ -27,7 +27,6 @@ struct Message31Header
     uint8_t azimuth_mode;
     uint16_t block_count;
 };
-#pragma pack()
 
 struct MomentDataBlock
 {
@@ -45,8 +44,10 @@ struct MomentDataBlock
     float offset;
     // gate data follows immediately
 };
+#pragma pack()
 
-StormProcessor::StormProcessor()
+StormProcessor::StormProcessor() : queue({}), worker([&]
+                                                     { this->queue.WorkerLoop(); })
 {
     float seconds = 0.5;
     while (nexradAPI.ListSamples().size() == 0 && seconds < 30)
@@ -60,6 +61,9 @@ StormProcessor::StormProcessor()
 
 StormProcessor::~StormProcessor()
 {
+    this->queue.Stop();
+    this->worker.join();
+
 }
 
 void StormProcessor::Refresh()
@@ -82,16 +86,15 @@ std::vector<SampleTimePoint> StormProcessor::GetTimePoints()
     return list;
 }
 
-VolumeScan StormProcessor::Process(SampleTimePoint timePoint)
+void StormProcessor::Process(SampleTimePoint timePoint)
 {
-    auto start = std::chrono::steady_clock::now();
     if (nexradAPI.ListSamples().empty())
     {
         std::cerr << "No samples!" << std::endl;
-        return {};
+        return;
     }
 
-    auto &meta = nexradAPI.ListSamples()[0];
+    SampleMetaData meta{.key = ""};
     for (auto &sampleMeta : nexradAPI.ListSamples())
     {
         if (sampleMeta.time == timePoint)
@@ -100,8 +103,22 @@ VolumeScan StormProcessor::Process(SampleTimePoint timePoint)
             break;
         }
     }
+    if (meta.key.empty())
+    {
+        std::cout << "Could not find sample metadata" << std::endl;
+        return;
+    }
 
     auto archive = nexradAPI.GetSample(meta);
+    queue.Push([this, archive = std::move(archive), timePoint]()
+               {   
+                std::lock_guard lock(this->cacheMutex);    
+                this->cache[timePoint] = _Process(std::move(archive)); });
+    return;
+}
+
+VolumeScan StormProcessor::_Process(ArchiveII archive)
+{
     VolumeScan scan;
     for (auto &record : archive.records)
         for (auto &message : record.messages)
@@ -198,8 +215,5 @@ VolumeScan StormProcessor::Process(SampleTimePoint timePoint)
                 // gates now contains e.g. dBZ values for "REF", m/s for "VEL", etc.
             }
         }
-
-    auto end = std::chrono::steady_clock::now();
-    std::cout << "Total Time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
     return scan;
 }

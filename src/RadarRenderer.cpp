@@ -2,9 +2,11 @@
 
 #include <stdexcept>
 #include <algorithm>
+#include <format>
+#include <iostream>
 #include <cmath>
 
-RadarRenderer::RadarRenderer() : shouldQuit(false), renderer(nullptr), window(nullptr)
+RadarRenderer::RadarRenderer() : shouldQuit(false), renderer(nullptr), window(nullptr), cache({}), processor({})
 {
     if (!SDL_WasInit(SDL_INIT_VIDEO))
     {
@@ -59,11 +61,12 @@ SDL_FColor GetColor(float reflectivity)
         0.75};
 }
 
-void RadarRenderer::Update(VolumeScan &scan)
+void RadarRenderer::Update()
 {
     // static float circleRadiuspx = 275;
     static float metersPerPixel = 100;
     static size_t elevationLayer = 0;
+    static size_t timePointIndex = 25;
 
     SDL_SetRenderDrawColorFloat(renderer, 0.05, 0.05, 0.05, 1.0);
     SDL_RenderClear(renderer);
@@ -75,6 +78,21 @@ void RadarRenderer::Update(VolumeScan &scan)
     // radius of circle is 50km
     SDL_SetRenderDrawColorFloat(renderer, 1, 0, 0, 1);
 
+    auto points = processor.GetTimePoints();
+    auto timePoint = points[timePointIndex];
+
+    if (cache.size() <= timePointIndex)
+    {
+        for (int i = cache.size(); i < timePointIndex + 1; i++)
+        {
+            auto tp = points[i];
+            std::string s = std::format("{:%Y/%m/%d-%H:%M}", tp);
+            std::cout << "\rGetting record (" << i << "/" << timePointIndex << ") at time " << s;
+            processor.Process(tp);
+        }
+    }
+
+    auto &scan = cache[timePoint];
     auto elevationIt = scan.radials.begin();
 
     std::advance(elevationIt, elevationLayer);
@@ -139,6 +157,16 @@ void RadarRenderer::Update(VolumeScan &scan)
             if (e.key.key == SDLK_DOWN)
             {
                 elevationLayer = (elevationLayer - 1) % scan.radials.size();
+            }
+            if (e.key.key == SDLK_RIGHT)
+            {
+                auto points = processor.GetTimePoints();
+                timePointIndex = (timePointIndex + 1) % points.size();
+            }
+            if (e.key.key == SDLK_LEFT)
+            {
+                if (timePointIndex != 0)
+                    timePointIndex--;
             }
         }
     }
