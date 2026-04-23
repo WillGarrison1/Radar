@@ -5,6 +5,7 @@
 #include <ranges>
 #include <functional>
 #include <span>
+#include <cmath>
 
 // Message 31 is the message with radial data
 struct Message31Header
@@ -53,18 +54,22 @@ struct Gate
 struct Radial
 {
     std::vector<Gate> gates;
-    float gateDistances;
+    uint16_t gateSize;
+    uint16_t firstGate;
 };
 
 struct VolumeScan
 {
-    std::unordered_map<float, std::unordered_map<float, Radial>> radials;
+    /*
+        radial = radials[round(elevation*10)][rounded(azimuth*10)];
+    */
+    std::unordered_map<uint16_t, std::unordered_map<uint16_t, Radial>> radials;
 };
 
 StormProcessor::StormProcessor()
 {
     float seconds = 0.5;
-    while (nexradAPI.ListSamples().size() == 0 || seconds > 30)
+    while (nexradAPI.ListSamples().size() == 0 && seconds < 30)
     {
         std::cout << "Waiting for radar archiveII records" << std::endl;
         nexradAPI.Update();
@@ -129,7 +134,9 @@ void StormProcessor::Process(SampleTimePoint timePoint)
             header.azimuth_angle = ToSysOrderF(header.azimuth_angle);
             header.elevation_angle = ToSysOrderF(header.elevation_angle);
             header.block_count = ToSysOrderS(header.block_count);
-            auto &radial = scan.radials[header.elevation_angle][header.azimuth_angle];
+            uint16_t elevationI = static_cast<uint16_t>(std::round(header.elevation_angle * 10));
+            uint16_t azimuthI = static_cast<uint16_t>(std::round(header.azimuth_angle * 10));
+            auto &radial = scan.radials[elevationI][azimuthI];
 
             if (header.compression != 0)
             {
@@ -157,6 +164,8 @@ void StormProcessor::Process(SampleTimePoint timePoint)
                 moment.scale = ToSysOrderF(moment.scale);
                 moment.offset = ToSysOrderF(moment.offset);
                 auto &gates = radial.gates;
+                radial.firstGate = moment.range_to_first;
+                radial.gateSize = moment.gate_size;
 
                 if (moment.num_gates > gates.size())
                 {
@@ -195,10 +204,9 @@ void StormProcessor::Process(SampleTimePoint timePoint)
 
                     if (raw <= 1)
                     {
-                        gate[i] = 0; // below threshold or range folded
+                        gate[i] = std::numeric_limits<float>::quiet_NaN(); // below threshold or range folded
                         continue;
                     }
-
                     gate[i] = (raw - moment.offset) / moment.scale;
                 }
                 // gates now contains e.g. dBZ values for "REF", m/s for "VEL", etc.

@@ -124,8 +124,6 @@ SampleMetaData NexradAPI::ParseSampleMeta(tinyxml2::XMLElement *meta)
                   std::chrono::month{static_cast<uint32_t>(tm.tm_mon + 1)} /
                   std::chrono::day{static_cast<uint32_t>(tm.tm_mday)}} +
               std::chrono::hours{tm.tm_hour} + std::chrono::minutes{tm.tm_min} + std::chrono::seconds{tm.tm_sec};
-    auto seconds = std::chrono::duration_cast<std::chrono::seconds>(
-        tp.time_since_epoch());
 
     auto tp_seconds =
         std::chrono::time_point_cast<std::chrono::seconds>(tp);
