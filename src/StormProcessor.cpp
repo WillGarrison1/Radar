@@ -112,8 +112,8 @@ VolumeScan StormProcessor::Process(SampleTimePoint timePoint)
             header.azimuth_angle = ToSysOrderF(header.azimuth_angle);
             header.elevation_angle = ToSysOrderF(header.elevation_angle);
             header.block_count = ToSysOrderS(header.block_count);
-            uint16_t elevationI = static_cast<uint16_t>(std::round(header.elevation_angle * 10));
-            uint16_t azimuthI = static_cast<uint16_t>(std::round(header.azimuth_angle * 10));
+            uint16_t elevationI = static_cast<uint16_t>(std::round(header.elevation_angle * 2)) * 5;
+            uint16_t azimuthI = static_cast<uint16_t>(std::round(header.azimuth_angle * 2)) * 5;
             auto &radial = scan.radials[elevationI][azimuthI];
 
             if (header.compression != 0)
@@ -141,9 +141,12 @@ VolumeScan StormProcessor::Process(SampleTimePoint timePoint)
                 moment.word_size = moment.word_size;
                 moment.scale = ToSysOrderF(moment.scale);
                 moment.offset = ToSysOrderF(moment.offset);
+
                 auto &gates = radial.gates;
                 radial.firstGate = moment.range_to_first;
                 radial.gateSize = moment.gate_size;
+                radial.trueAzimuth = header.azimuth_angle;
+                radial.trueElevation = header.elevation_angle;
 
                 if (moment.num_gates > gates.size())
                 {
@@ -176,9 +179,13 @@ VolumeScan StormProcessor::Process(SampleTimePoint timePoint)
                 {
                     uint16_t raw;
                     if (moment.word_size == 8)
+                    {
                         raw = gateData[i];
+                    }
                     else
+                    {
                         raw = ToSysOrderS(reinterpret_cast<const uint16_t *>(gateData)[i]);
+                    }
 
                     if (raw <= 1)
                     {

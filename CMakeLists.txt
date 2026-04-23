@@ -34,7 +34,7 @@ set(CURL_USE_LIBIDN2     OFF CACHE BOOL "" FORCE)
 add_subdirectory(${cpr_SOURCE_DIR} ${cpr_BINARY_DIR})
 
 add_executable(Radar ${SRC})
-target_link_libraries(Radar PRIVATE cpr::cpr bxzstr::bxzstr)
+target_link_libraries(Radar PRIVATE cpr::cpr bxzstr::bxzstr SDL3::SDL3)
 if (CMAKE_BUILD_TYPE STREQUAL "Release")
     target_compile_options(Radar PRIVATE -O3 -flto -march=native)
     target_link_options(Radar PRIVATE -flto)

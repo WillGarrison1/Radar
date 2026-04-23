@@ -15,6 +15,8 @@ struct Radial
     std::vector<Gate> gates;
     uint16_t gateSize;
     uint16_t firstGate;
+    float trueAzimuth; // actual non-rounded azimuth
+    float trueElevation; // actual non-rounded elevation
 };
 
 struct VolumeScan
