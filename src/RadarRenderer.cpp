@@ -82,7 +82,7 @@ void RadarRenderer::Update()
     // static float circleRadiuspx = 275;
     static float metersPerPixel = 100;
     static size_t elevationLayer = 0;
-    static size_t timePointIndex = 5;
+    static size_t timePointIndex = 100;
 
     SDL_SetRenderDrawColorFloat(renderer, 0.05, 0.05, 0.05, 1.0);
     SDL_RenderClear(renderer);

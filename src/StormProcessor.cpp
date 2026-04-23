@@ -187,17 +187,17 @@ VolumeScan StormProcessor::_Process(ArchiveII archive)
 
                 const uint8_t *gateData = block + sizeof(MomentDataBlock);
 
-                std::function<float &(Gate &)> func;
+                std::function<int8_t &(Gate &)> func;
                 if (std::string(moment.name, 3) == "REF")
                 {
                     func =
-                        [](Gate &g) -> float &
+                        [](Gate &g) -> int8_t &
                     { return g.reflectivity; };
                 }
                 else if (std::string(moment.name, 3) == "VEL")
                 {
                     func =
-                        [](Gate &g) -> float &
+                        [](Gate &g) -> int8_t &
                     { return g.velocity; };
                 }
                 else

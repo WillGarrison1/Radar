@@ -11,8 +11,8 @@
 
 struct Gate
 {
-    float reflectivity;
-    float velocity;
+    int8_t reflectivity;
+    int8_t velocity;
 };
 
 struct Radial
