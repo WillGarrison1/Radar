@@ -33,7 +33,7 @@ void DrawCircle(SDL_Renderer *renderer, SDL_FPoint center, float radius, SDL_FCo
 
     for (int i = 0; i < resolution; i++)
     {
-        float angle = 2 * 3.142 * i / resolution; // angle in radians
+        float angle = 2 * std::numbers::pi * i / resolution; // angle in radians
         vertices[i].tex_coord = {0, 0};
         vertices[i].color = color;
         vertices[i].position = {std::cos(angle) * radius + center.x,

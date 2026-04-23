@@ -15,6 +15,7 @@ struct SampleMetaData
     size_t size;
 };
 
+#pragma pack(1)
 struct ArchiveIIHeader
 {
     char filename[9];
@@ -35,6 +36,8 @@ struct MessageHeader
     uint16_t num_segs;
     uint16_t seg_num;
 };
+#pragma pack()
+
 
 struct Message
 {
@@ -79,8 +82,7 @@ constexpr uint16_t ToSysOrderS(uint16_t data)
 
 constexpr float ToSysOrderF(float f)
 {
-    uint32_t data = ToSysOrderL(*reinterpret_cast<uint32_t *>(&f));
-    return *reinterpret_cast<float *>(&data);
+    return std::bit_cast<float>(ToSysOrderL(std::bit_cast<uint32_t>(f)));
 }
 
 class NexradAPI

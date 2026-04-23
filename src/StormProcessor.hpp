@@ -15,14 +15,14 @@ struct Radial
     std::vector<Gate> gates;
     uint16_t gateSize;
     uint16_t firstGate;
-    float trueAzimuth; // actual non-rounded azimuth
+    float trueAzimuth;   // actual non-rounded azimuth
     float trueElevation; // actual non-rounded elevation
 };
 
 struct VolumeScan
 {
     /*
-        radial = radials[round(elevation*10)][rounded(azimuth*10)];
+        radial = radials[elevation][azimuth];
     */
     std::unordered_map<uint16_t, std::unordered_map<uint16_t, Radial>> radials;
 };

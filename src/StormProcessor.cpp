@@ -7,6 +7,7 @@
 #include <thread>
 
 // Message 31 is the message with radial data
+#pragma pack(1)
 struct Message31Header
 {
     char radar_id[4];
@@ -26,6 +27,7 @@ struct Message31Header
     uint8_t azimuth_mode;
     uint16_t block_count;
 };
+#pragma pack()
 
 struct MomentDataBlock
 {
