@@ -112,5 +112,5 @@ private:
     tinyxml2::XMLDocument radarSampleMetadataXML;
     std::vector<SampleMetaData> radarSamplesMeta;
 
-    cpr::Session session;
+    std::array<cpr::Session,4> sessions;
 };

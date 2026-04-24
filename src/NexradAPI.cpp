@@ -16,8 +16,11 @@ static std::string radarName = "KDVN";
 
 NexradAPI::NexradAPI()
 {
-    session.SetHeader(cpr::Header{{"Accept-Encoding", "identity"}});
-    session.SetTimeout(cpr::Timeout{20000});
+    for (int i = 0; i < this->sessions.size(); i++)
+    {
+        sessions[i].SetHeader(cpr::Header{{"Accept-Encoding", "identity"}});
+        sessions[i].SetTimeout(cpr::Timeout{20000});
+    }
     Update();
 }
 
@@ -41,6 +44,7 @@ void NexradAPI::Update()
     std::cout << dateString << std::endl;
     std::string url = "https://unidata-nexrad-level2.s3.amazonaws.com/?prefix=" + dateString + "/" + radarName + "/";
     std::cout << url << std::endl;
+    auto &session = sessions[0];
     {
         BENCHMARK_MS();
         session.SetUrl(cpr::Url{url});
@@ -150,10 +154,10 @@ ArchiveII NexradAPI::GetSample(SampleMetaData meta)
     std::string url = "https://unidata-nexrad-level2.s3.amazonaws.com/" + meta.key;
     // session.SetUrl(cpr::Url{url});
 
-    constexpr uint32_t numChunks = 4;
+    constexpr uint32_t numChunks = 2;
     size_t chunkSize = (meta.size + numChunks - 1) / numChunks;
 
-    std::vector<std::string> chunks(numChunks);
+    std::vector<cpr::Response> chunks(numChunks);
     std::vector<std::thread> workers;
 
     {
@@ -162,26 +166,35 @@ ArchiveII NexradAPI::GetSample(SampleMetaData meta)
         {
             workers.emplace_back([&, i]
                                  {
+                auto &session = sessions[i];
                 size_t start = i * chunkSize;
-                size_t end = (i + 1) * chunkSize;
-                auto result = cpr::Get(cpr::Url{url}, cpr::Timeout{20000}, cpr::Header{{"Range", std::format("bytes={}-{}",start,end)}}); 
-                chunks[i] = std::move(result.text); });
+                size_t end = std::min((i + 1) * chunkSize - 1, meta.size - 1);
+                session.SetUrl(cpr::Url{url});
+                session.SetHeader(cpr::Header{{"Range", std::format("bytes={}-{}",start,end)}});
+                chunks[i] = std::move(session.Get()); });
         }
+        for (auto &t : workers)
+            t.join();
     }
-    for (auto &t : workers)
-        t.join();
 
     std::string dataText;
     dataText.reserve(meta.size);
     for (uint32_t i = 0; i < numChunks; i++)
-        dataText += chunks[i];
+    {
+        if ((chunks[i].status_code != 200 && chunks[i].status_code != 206) || chunks[i].error)
+        {
+            std::cerr << "Failed to download archiveII! Status-code: " << chunks[i].status_code << std::endl;
+            return {};
+        }
+        dataText += chunks[i].text;
+    }
 
     // if (result.status_code != 200 || result.error)
     // {
     //     throw std::runtime_error("Failed to get download file!");
     // }
 
-    std::cout << "\nSize: " << dataText.length() << std::endl;
+    std::cout << "Size: " << dataText.length() << std::endl;
 
     ArchiveII archive;
 

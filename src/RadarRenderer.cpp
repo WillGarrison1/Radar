@@ -97,10 +97,11 @@ void RadarRenderer::Update()
     auto points = processor.GetTimePoints();
     auto timePoint = points[points.size() - timePointIndex - 1];
     auto &cache = processor.GetCached();
-
-    if (cache.size() <= timePointIndex)
+    auto cacheSize = cache.size();
+    auto pending = processor.GetPending().size();
+    if (cacheSize + pending <= timePointIndex)
     {
-        for (int i = cache.size(); i < timePointIndex + 1; i++)
+        for (int i = cacheSize + pending; i <= timePointIndex; i++)
         {
             auto tp = points[points.size() - i - 1];
             std::string s = std::format("{:%Y/%m/%d-%H:%M}", tp);
@@ -109,38 +110,42 @@ void RadarRenderer::Update()
         }
     }
 
-    auto &scan = cache[timePoint];
-    auto elevationIt = scan.radials.begin();
-
-    std::advance(elevationIt, elevationLayer);
-
-    if (elevationIt != scan.radials.end())
+    if (cache.contains(timePoint) && !cache[timePoint].radials.empty())
     {
-        for (auto &radial : elevationIt->second)
-        {
-            for (int i = 0; i < radial.gates.size(); i++)
-            {
-                auto &gate = radial.gates[i];
-                if (!std::isnan(gate.reflectivity) && gate.reflectivity > 10)
-                {
-                    constexpr float deg2rad = std::numbers::pi / 180.0f;
-                    float dist = radial.firstGate + radial.gateSize * i;
-                    if (dist > metersPerPixel * 400.0f * std::numbers::sqrt2)
-                        continue;
-                    float az1 = (90.0f - radial.trueAzimuth - 0.25f) * deg2rad; // half beamwidth
-                    float az2 = (90.0f - radial.trueAzimuth + 0.25f) * deg2rad;
-                    float nearDist = dist / metersPerPixel;
-                    float farDist = (dist + radial.gateSize) / metersPerPixel;
+        auto &scan = cache[timePoint];
+        auto elevationIt = scan.radials.begin();
 
-                    SDL_FColor color = GetColor(gate.reflectivity);
-                    SDL_Vertex verts[4] = {
-                        {{circleCenter.x + std::cos(az1) * nearDist, circleCenter.y - std::sin(az1) * nearDist}, color, {0, 0}},
-                        {{circleCenter.x + std::cos(az2) * nearDist, circleCenter.y - std::sin(az2) * nearDist}, color, {0, 0}},
-                        {{circleCenter.x + std::cos(az1) * farDist, circleCenter.y - std::sin(az1) * farDist}, color, {0, 0}},
-                        {{circleCenter.x + std::cos(az2) * farDist, circleCenter.y - std::sin(az2) * farDist}, color, {0, 0}},
-                    };
-                    int indices[] = {0, 1, 2, 1, 2, 3};
-                    SDL_RenderGeometry(renderer, nullptr, verts, 4, indices, 6);
+        std::advance(elevationIt, elevationLayer % scan.radials.size());
+
+        if (elevationIt != scan.radials.end())
+        {
+            for (auto &radial : elevationIt->second)
+            {
+                for (auto &pair : radial.gates)
+                {
+                    auto &gate = pair.second;
+                    auto i = pair.first;
+                    if (!std::isnan(gate.reflectivity) && gate.reflectivity > 10)
+                    {
+                        constexpr float deg2rad = std::numbers::pi / 180.0f;
+                        float dist = radial.firstGate + radial.gateSize * i;
+                        if (dist > metersPerPixel * 400.0f * std::numbers::sqrt2)
+                            continue;
+                        float az1 = (90.0f - radial.trueAzimuth - 0.25f) * deg2rad; // half beamwidth
+                        float az2 = (90.0f - radial.trueAzimuth + 0.25f) * deg2rad;
+                        float nearDist = dist / metersPerPixel;
+                        float farDist = (dist + radial.gateSize) / metersPerPixel;
+
+                        SDL_FColor color = GetColor(gate.reflectivity);
+                        SDL_Vertex verts[4] = {
+                            {{circleCenter.x + std::cos(az1) * nearDist, circleCenter.y - std::sin(az1) * nearDist}, color, {0, 0}},
+                            {{circleCenter.x + std::cos(az2) * nearDist, circleCenter.y - std::sin(az2) * nearDist}, color, {0, 0}},
+                            {{circleCenter.x + std::cos(az1) * farDist, circleCenter.y - std::sin(az1) * farDist}, color, {0, 0}},
+                            {{circleCenter.x + std::cos(az2) * farDist, circleCenter.y - std::sin(az2) * farDist}, color, {0, 0}},
+                        };
+                        int indices[] = {0, 1, 2, 1, 2, 3};
+                        SDL_RenderGeometry(renderer, nullptr, verts, 4, indices, 6);
+                    }
                 }
             }
         }
@@ -169,21 +174,23 @@ void RadarRenderer::Update()
             }
             if (e.key.key == SDLK_UP)
             {
-                elevationLayer = (elevationLayer + 1) % scan.radials.size();
+                elevationLayer = (elevationLayer + 1) % 10;
             }
             if (e.key.key == SDLK_DOWN)
             {
-                elevationLayer = (elevationLayer - 1) % scan.radials.size();
+                elevationLayer = (elevationLayer - 1) % 10;
             }
             if (e.key.key == SDLK_RIGHT)
             {
                 auto points = processor.GetTimePoints();
                 timePointIndex = (timePointIndex + 1) % points.size();
+                std::cout << timePointIndex << std::endl;
             }
             if (e.key.key == SDLK_LEFT)
             {
                 if (timePointIndex != 0)
                     timePointIndex--;
+                std::cout << timePointIndex << std::endl;
             }
         }
     }

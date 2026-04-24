@@ -6,6 +6,13 @@
 #include <span>
 #include <thread>
 
+enum class GateType
+{
+    None,
+    Reflectivity,
+    Velocity
+};
+
 // Message 31 is the message with radial data
 #pragma pack(1)
 struct Message31Header
@@ -114,20 +121,19 @@ void StormProcessor::Process(SampleTimePoint timePoint)
     }
 
     pending.emplace(timePoint.time_since_epoch().count());
-
-    auto start = std::chrono::steady_clock::now();
-    auto archive = nexradAPI.GetSample(meta);
-    auto end = std::chrono::steady_clock::now();
-    std::cout << "Download took: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
-    queue.Push([this, archive = std::move(archive), timePoint]()
+    queue.Push([this, meta]()
                {   
                 auto start = std::chrono::steady_clock::now();
-                auto result = _Process(std::move(archive)); 
+                auto archive = nexradAPI.GetSample(meta);
                 auto end = std::chrono::steady_clock::now();
-                std::cout << "Process took: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+                std::cout << "Download took: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
+                start = std::chrono::steady_clock::now();
+                auto result = _Process(std::move(archive)); 
+                end = std::chrono::steady_clock::now();
+                std::cout << "\nProcess took: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
                 std::lock_guard lock(this->cacheMutex);
-                this->cache[timePoint] = result;
-                this->pending.erase(timePoint.time_since_epoch().count()); });
+                this->cache[meta.time] = result;
+                this->pending.erase(meta.time.time_since_epoch().count()); });
     return;
 }
 
@@ -156,7 +162,7 @@ VolumeScan StormProcessor::_Process(ArchiveII archive)
 
             // block offsets array sits immediately after the header
             const uint32_t *blockOffsets = reinterpret_cast<const uint32_t *>(data.data() + sizeof(Message31Header));
-
+            std::vector<Gate> gates;
             for (int i = 0; i < header.block_count; i++)
             {
                 uint32_t offset = ToSysOrderL(blockOffsets[i]);
@@ -174,7 +180,6 @@ VolumeScan StormProcessor::_Process(ArchiveII archive)
                 moment.scale = ToSysOrderF(moment.scale);
                 moment.offset = ToSysOrderF(moment.offset);
 
-                auto &gates = radial.gates;
                 radial.firstGate = moment.range_to_first;
                 radial.gateSize = moment.gate_size;
                 radial.trueAzimuth = header.azimuth_angle;
@@ -226,7 +231,12 @@ VolumeScan StormProcessor::_Process(ArchiveII archive)
                     }
                     gate[i] = (raw - moment.offset) / moment.scale;
                 }
-                // gates now contains e.g. dBZ values for "REF", m/s for "VEL", etc.
+            }
+            // gates now contains e.g. dBZ values for "REF", m/s for "VEL", etc.
+            for (uint16_t i = 0; i < gates.size(); i++)
+            {
+                if (gates[i].reflectivity > 0) // filter gates to positive reflectivity
+                    radial.gates[i] = gates[i];
             }
         }
     return scan;

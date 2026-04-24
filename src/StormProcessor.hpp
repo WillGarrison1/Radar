@@ -7,6 +7,7 @@
 #include <mutex>
 #include <functional>
 #include <queue>
+#include <map>
 #include <unordered_set>
 
 struct Gate
@@ -17,7 +18,7 @@ struct Gate
 
 struct Radial
 {
-    std::vector<Gate> gates;
+    std::map<std::uint16_t, Gate> gates;
     uint16_t gateSize;
     uint16_t firstGate;
     float trueAzimuth;   // actual non-rounded azimuth
@@ -53,7 +54,7 @@ public:
                 std::unique_lock lock(mutex);
                 cv.wait(lock, [this]
                         { return !queue.empty() || stopped; });
-                if (stopped && queue.empty())
+                if (stopped)
                     return;
                 task = std::move(queue.front());
                 queue.pop();
@@ -93,6 +94,17 @@ public:
     inline std::map<SampleTimePoint, VolumeScan> &GetCached()
     {
         return cache;
+    }
+
+    inline std::vector<SampleTimePoint> GetPending()
+    {
+        std::vector<SampleTimePoint> vec;
+        for (uint64_t point : pending)
+        {
+            SampleTimePoint tp(std::chrono::duration_cast<SampleTimePoint::duration>(std::chrono::nanoseconds{point}));
+            vec.push_back(tp);
+        }
+        return vec;
     }
 
 private:
