@@ -1,19 +1,23 @@
 #include "NexradAPI.hpp"
-#include <iostream>
 
 #include <bxzstr.hpp>
 #include <chrono>
 #include <cpr/cpr.h>
 #include <fstream>
+#include <iostream>
 #include <ranges>
 #include <sstream>
 #include <string>
 #include <tinyxml2.h>
 
+#include "Benchmark.hpp"
+
 static std::string radarName = "KDVN";
 
 NexradAPI::NexradAPI()
 {
+    session.SetHeader(cpr::Header{{"Accept-Encoding", "identity"}});
+    session.SetTimeout(cpr::Timeout{20000});
     Update();
 }
 
@@ -37,7 +41,11 @@ void NexradAPI::Update()
     std::cout << dateString << std::endl;
     std::string url = "https://unidata-nexrad-level2.s3.amazonaws.com/?prefix=" + dateString + "/" + radarName + "/";
     std::cout << url << std::endl;
-    auto result = cpr::Get(cpr::Url{url});
+    {
+        BENCHMARK_MS();
+        session.SetUrl(cpr::Url{url});
+    }
+    auto result = session.Get();
     std::cout << "Status code: " << result.status_code << std::endl;
 
     if (result.status_code != 200)
@@ -140,17 +148,44 @@ std::vector<SampleMetaData> &NexradAPI::ListSamples()
 ArchiveII NexradAPI::GetSample(SampleMetaData meta)
 {
     std::string url = "https://unidata-nexrad-level2.s3.amazonaws.com/" + meta.key;
-    auto result = cpr::Get(cpr::Url{url}, cpr::Timeout{20000});
-    if (result.status_code != 200 || result.error)
-    {
-        throw std::runtime_error("Failed to get download file!");
-    }
+    // session.SetUrl(cpr::Url{url});
 
-    std::cout << "\nSize: " << result.text.size() << std::endl;
+    constexpr uint32_t numChunks = 4;
+    size_t chunkSize = (meta.size + numChunks - 1) / numChunks;
+
+    std::vector<std::string> chunks(numChunks);
+    std::vector<std::thread> workers;
+
+    {
+        BENCHMARK_MS();
+        for (uint32_t i = 0; i < numChunks; i++)
+        {
+            workers.emplace_back([&, i]
+                                 {
+                size_t start = i * chunkSize;
+                size_t end = (i + 1) * chunkSize;
+                auto result = cpr::Get(cpr::Url{url}, cpr::Timeout{20000}, cpr::Header{{"Range", std::format("bytes={}-{}",start,end)}}); 
+                chunks[i] = std::move(result.text); });
+        }
+    }
+    for (auto &t : workers)
+        t.join();
+
+    std::string dataText;
+    dataText.reserve(meta.size);
+    for (uint32_t i = 0; i < numChunks; i++)
+        dataText += chunks[i];
+
+    // if (result.status_code != 200 || result.error)
+    // {
+    //     throw std::runtime_error("Failed to get download file!");
+    // }
+
+    std::cout << "\nSize: " << dataText.length() << std::endl;
 
     ArchiveII archive;
 
-    const char *data = result.text.c_str();
+    const char *data = dataText.c_str();
 
     std::memcpy(&archive.header, data, sizeof(archive.header));
 
@@ -161,7 +196,7 @@ ArchiveII NexradAPI::GetSample(SampleMetaData meta)
 
     // auto start = std::chrono::steady_clock::now();
 
-    while (current - data < result.text.length())
+    while (current - data < dataText.length())
     {
         // auto recordStart = std::chrono::steady_clock::now();
         CompressedRecord &record = archive.records.emplace_back();

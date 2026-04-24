@@ -5,6 +5,7 @@
 #include <string>
 #include <tinyxml2.h>
 #include <vector>
+#include <cpr/cpr.h>
 
 using SampleTimePoint = std::chrono::time_point<std::chrono::system_clock, std::chrono::seconds>;
 
@@ -37,7 +38,6 @@ struct MessageHeader
     uint16_t seg_num;
 };
 #pragma pack()
-
 
 struct Message
 {
@@ -111,4 +111,6 @@ private:
 
     tinyxml2::XMLDocument radarSampleMetadataXML;
     std::vector<SampleMetaData> radarSamplesMeta;
+
+    cpr::Session session;
 };
