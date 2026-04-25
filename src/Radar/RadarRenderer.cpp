@@ -117,6 +117,8 @@ void RadarRenderer::Update(float deltaTime)
 
         std::vector<SDL_Vertex> vertices;
         std::vector<int> indices;
+        vertices.reserve(400000);
+        indices.reserve(600000);
 
         auto &scan = cache[timePoint];
         auto elevationIt = scan.radials.begin();
@@ -129,24 +131,28 @@ void RadarRenderer::Update(float deltaTime)
             {
                 for (auto &gate : radial.gates)
                 {
+                    constexpr float deg2rad = std::numbers::pi / 180.0f;
                     auto i = gate.gateNum;
+                    float az1 = (90.0f - radial.trueAzimuth - scan.radialWidth / 2) * deg2rad; // half beamwidth
+                    float az2 = (90.0f - radial.trueAzimuth + scan.radialWidth / 2) * deg2rad;
+                    float az1Cos = std::cos(az1);
+                    float az2Cos = std::cos(az2);
+                    float az1Sin = std::sin(az1);
+                    float az2Sin = std::sin(az2);
                     if (!std::isnan(gate.reflectivity) && gate.reflectivity > 10)
                     {
-                        constexpr float deg2rad = std::numbers::pi / 180.0f;
                         float dist = radial.firstGate + radial.gateSize * i;
                         if (dist > metersPerPixel * 400.0f * std::numbers::sqrt2)
                             continue;
-                        float az1 = (90.0f - radial.trueAzimuth - scan.radialWidth / 2) * deg2rad; // half beamwidth
-                        float az2 = (90.0f - radial.trueAzimuth + scan.radialWidth / 2) * deg2rad;
                         float nearDist = dist / metersPerPixel;
                         float farDist = (dist + radial.gateSize) / metersPerPixel;
 
                         SDL_FColor color = GetColor(gate.reflectivity);
                         int start = vertices.size();
-                        vertices.push_back({{circleCenter.x + std::cos(az1) * nearDist, circleCenter.y - std::sin(az1) * nearDist}, color, {0, 0}});
-                        vertices.push_back({{circleCenter.x + std::cos(az2) * nearDist, circleCenter.y - std::sin(az2) * nearDist}, color, {0, 0}});
-                        vertices.push_back({{circleCenter.x + std::cos(az1) * farDist, circleCenter.y - std::sin(az1) * farDist}, color, {0, 0}});
-                        vertices.push_back({{circleCenter.x + std::cos(az2) * farDist, circleCenter.y - std::sin(az2) * farDist}, color, {0, 0}});
+                        vertices.push_back({{circleCenter.x + az1Cos * nearDist, circleCenter.y - az1Sin * nearDist}, color, {0, 0}});
+                        vertices.push_back({{circleCenter.x + az2Cos * nearDist, circleCenter.y - az2Sin * nearDist}, color, {0, 0}});
+                        vertices.push_back({{circleCenter.x + az1Cos * farDist, circleCenter.y - az1Sin * farDist}, color, {0, 0}});
+                        vertices.push_back({{circleCenter.x + az2Cos * farDist, circleCenter.y - az2Sin * farDist}, color, {0, 0}});
 
                         indices.push_back(start);
                         indices.push_back(start + 1);

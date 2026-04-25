@@ -2,8 +2,8 @@
 #include <format>
 #include <thread>
 
-#include "RadarRenderer.hpp"
-#include "StormProcessor.hpp"
+#include "Radar/RadarRenderer.hpp"
+#include "Radar/StormProcessor.hpp"
 
 constexpr float TARGET_FPS = 60;
 constexpr float TARGET_FRAMETIME = 1 / TARGET_FPS;

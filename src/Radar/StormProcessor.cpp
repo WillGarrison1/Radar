@@ -238,7 +238,7 @@ VolumeScan StormProcessor::_Process(ArchiveII archive)
             // gates now contains e.g. dBZ values for "REF", m/s for "VEL", etc.
             for (uint16_t i = 0; i < gates.size(); i++)
             {
-                if (gates[i].reflectivity > 5) // filter gates to reflectivity threshold
+                if (gates[i].reflectivity > 10) // filter gates to reflectivity threshold
                 {
                     radial.gates.emplace_back(gates[i].reflectivity, gates[i].velocity, i);
                     numGates++;
