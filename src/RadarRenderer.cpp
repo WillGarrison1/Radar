@@ -136,8 +136,8 @@ void RadarRenderer::Update(float deltaTime)
                         float dist = radial.firstGate + radial.gateSize * i;
                         if (dist > metersPerPixel * 400.0f * std::numbers::sqrt2)
                             continue;
-                        float az1 = (90.0f - radial.trueAzimuth - 0.25f) * deg2rad; // half beamwidth
-                        float az2 = (90.0f - radial.trueAzimuth + 0.25f) * deg2rad;
+                        float az1 = (90.0f - radial.trueAzimuth - scan.radialWidth / 2) * deg2rad; // half beamwidth
+                        float az2 = (90.0f - radial.trueAzimuth + scan.radialWidth / 2) * deg2rad;
                         float nearDist = dist / metersPerPixel;
                         float farDist = (dist + radial.gateSize) / metersPerPixel;
 

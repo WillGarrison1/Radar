@@ -155,6 +155,8 @@ VolumeScan StormProcessor::_Process(ArchiveII archive)
             uint16_t elevationI = static_cast<uint16_t>(std::round(header.elevation_angle * 2)) * 5;
             auto &radial = scan.radials[elevationI].emplace_back();
 
+            scan.radialWidth = header.azimuth_resolution == 1 ? 0.5 : 1;
+
             if (header.compression != 0)
             {
                 std::cout << "No support for compressed messages yet!" << std::endl;

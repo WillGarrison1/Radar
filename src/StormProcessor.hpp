@@ -31,6 +31,7 @@ struct VolumeScan
     /*
         radial = radials[elevation][azimuth];
     */
+    float radialWidth;
     std::map<uint16_t, std::vector<Radial>> radials;
 };
 
