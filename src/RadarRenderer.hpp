@@ -9,7 +9,7 @@ public:
     RadarRenderer();
     ~RadarRenderer();
 
-    void Update();
+    void Update(float deltaTime);
 
     inline bool ShouldQuit()
     {

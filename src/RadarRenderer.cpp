@@ -77,7 +77,7 @@ SDL_FColor GetColor(float reflectivity)
     return {0, 0, 0, 0};
 }
 
-void RadarRenderer::Update()
+void RadarRenderer::Update(float deltaTime)
 {
     // static float circleRadiuspx = 275;
     static float metersPerPixel = 100;
@@ -95,6 +95,8 @@ void RadarRenderer::Update()
     SDL_SetRenderDrawColorFloat(renderer, 1, 0, 0, 1);
 
     auto points = processor.GetTimePoints();
+    timePointIndex = std::clamp(timePointIndex, 0ull, points.size() - 1);
+
     auto timePoint = points[points.size() - timePointIndex - 1];
     auto &cache = processor.GetCached();
     auto cacheSize = cache.size();
@@ -112,6 +114,10 @@ void RadarRenderer::Update()
 
     if (cache.contains(timePoint) && !cache[timePoint].radials.empty())
     {
+
+        std::vector<SDL_Vertex> vertices;
+        std::vector<int> indices;
+
         auto &scan = cache[timePoint];
         auto elevationIt = scan.radials.begin();
 
@@ -121,10 +127,9 @@ void RadarRenderer::Update()
         {
             for (auto &radial : elevationIt->second)
             {
-                for (auto &pair : radial.gates)
+                for (auto &gate : radial.gates)
                 {
-                    auto &gate = pair.second;
-                    auto i = pair.first;
+                    auto i = gate.gateNum;
                     if (!std::isnan(gate.reflectivity) && gate.reflectivity > 10)
                     {
                         constexpr float deg2rad = std::numbers::pi / 180.0f;
@@ -137,18 +142,23 @@ void RadarRenderer::Update()
                         float farDist = (dist + radial.gateSize) / metersPerPixel;
 
                         SDL_FColor color = GetColor(gate.reflectivity);
-                        SDL_Vertex verts[4] = {
-                            {{circleCenter.x + std::cos(az1) * nearDist, circleCenter.y - std::sin(az1) * nearDist}, color, {0, 0}},
-                            {{circleCenter.x + std::cos(az2) * nearDist, circleCenter.y - std::sin(az2) * nearDist}, color, {0, 0}},
-                            {{circleCenter.x + std::cos(az1) * farDist, circleCenter.y - std::sin(az1) * farDist}, color, {0, 0}},
-                            {{circleCenter.x + std::cos(az2) * farDist, circleCenter.y - std::sin(az2) * farDist}, color, {0, 0}},
-                        };
-                        int indices[] = {0, 1, 2, 1, 2, 3};
-                        SDL_RenderGeometry(renderer, nullptr, verts, 4, indices, 6);
+                        int start = vertices.size();
+                        vertices.push_back({{circleCenter.x + std::cos(az1) * nearDist, circleCenter.y - std::sin(az1) * nearDist}, color, {0, 0}});
+                        vertices.push_back({{circleCenter.x + std::cos(az2) * nearDist, circleCenter.y - std::sin(az2) * nearDist}, color, {0, 0}});
+                        vertices.push_back({{circleCenter.x + std::cos(az1) * farDist, circleCenter.y - std::sin(az1) * farDist}, color, {0, 0}});
+                        vertices.push_back({{circleCenter.x + std::cos(az2) * farDist, circleCenter.y - std::sin(az2) * farDist}, color, {0, 0}});
+
+                        indices.push_back(start);
+                        indices.push_back(start + 1);
+                        indices.push_back(start + 2);
+                        indices.push_back(start + 1);
+                        indices.push_back(start + 2);
+                        indices.push_back(start + 3);
                     }
                 }
             }
         }
+        SDL_RenderGeometry(renderer, nullptr, vertices.data(), vertices.size(), indices.data(), indices.size());
     }
 
     SDL_RenderPresent(renderer);
@@ -156,6 +166,7 @@ void RadarRenderer::Update()
     SDL_Event e;
     while (SDL_PollEvent(&e))
     {
+
         if (e.type == SDL_EVENT_QUIT)
         {
             shouldQuit = true;
@@ -191,6 +202,12 @@ void RadarRenderer::Update()
                 if (timePointIndex != 0)
                     timePointIndex--;
                 std::cout << timePointIndex << std::endl;
+            }
+            if (e.key.key == SDLK_R)
+            {
+                std::cout << "Refreshing...";
+                processor.Refresh();
+                std::cout << "Done!   Number of Scans: " << processor.GetTimePoints().size() << std::endl;
             }
         }
     }

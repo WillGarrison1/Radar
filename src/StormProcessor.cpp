@@ -140,6 +140,7 @@ void StormProcessor::Process(SampleTimePoint timePoint)
 VolumeScan StormProcessor::_Process(ArchiveII archive)
 {
     VolumeScan scan;
+    size_t numGates = 0;
     for (auto &record : archive.records)
         for (auto &message : record.messages)
         {
@@ -235,9 +236,13 @@ VolumeScan StormProcessor::_Process(ArchiveII archive)
             // gates now contains e.g. dBZ values for "REF", m/s for "VEL", etc.
             for (uint16_t i = 0; i < gates.size(); i++)
             {
-                if (gates[i].reflectivity > 0) // filter gates to positive reflectivity
-                    radial.gates[i] = gates[i];
+                if (gates[i].reflectivity > 5) // filter gates to reflectivity threshold
+                {
+                    radial.gates.emplace_back(gates[i].reflectivity, gates[i].velocity, i);
+                    numGates++;
+                }
             }
         }
+    std::cout << "Gates: " << numGates << std::endl;
     return scan;
 }

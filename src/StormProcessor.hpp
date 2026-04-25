@@ -14,11 +14,12 @@ struct Gate
 {
     int8_t reflectivity;
     int8_t velocity;
+    uint16_t gateNum;
 };
 
 struct Radial
 {
-    std::map<std::uint16_t, Gate> gates;
+    std::vector<Gate> gates;
     uint16_t gateSize;
     uint16_t firstGate;
     float trueAzimuth;   // actual non-rounded azimuth
