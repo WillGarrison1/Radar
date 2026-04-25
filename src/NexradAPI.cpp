@@ -12,7 +12,7 @@
 
 #include "Benchmark.hpp"
 
-static std::string radarName = "KLSX";
+static std::string radarName = "TLVE";
 
 NexradAPI::NexradAPI()
 {
@@ -107,7 +107,7 @@ SampleMetaData NexradAPI::ParseSampleMeta(tinyxml2::XMLElement *meta)
     sample.key = key->GetText();
     sample.size = std::stoull(size->GetText());
 
-    if (*(sample.key.end() - 1) != '6')
+    if (*(sample.key.end() - 1) != '6' && *(sample.key.end() - 1) != '8')
     {
         std::cout << "No support for non-standard archiveII files" << std::endl;
         return {};
