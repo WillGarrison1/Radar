@@ -1,6 +1,5 @@
 #pragma once
 
-#include "WeatherData.hpp"
 #include <chrono>
 #include <string>
 #include <tinyxml2.h>
@@ -45,7 +44,7 @@ struct Message
     size_t index;
 };
 
-struct CompressedRecord
+struct Record
 {
     int32_t compresssedSize;
     std::vector<uint8_t> data;
@@ -55,7 +54,7 @@ struct CompressedRecord
 struct ArchiveII
 {
     ArchiveIIHeader header;
-    std::vector<CompressedRecord> records;
+    std::vector<Record> records;
 };
 
 constexpr uint32_t ToSysOrderL(uint32_t data)
@@ -108,6 +107,7 @@ public:
 
 private:
     SampleMetaData ParseSampleMeta(tinyxml2::XMLElement *element);
+    size_t ParseRecord(Record &record, const char *data);
 
     tinyxml2::XMLDocument radarSampleMetadataXML;
     std::vector<SampleMetaData> radarSamplesMeta;

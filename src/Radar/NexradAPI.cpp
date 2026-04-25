@@ -41,17 +41,11 @@ void NexradAPI::Update()
 
     dateString += "/" + month + "/" + day;
 
-    std::cout << dateString << std::endl;
     std::string url = "https://unidata-nexrad-level2.s3.amazonaws.com/?prefix=" + dateString + "/" + radarName + "/";
-    std::cout << url << std::endl;
     auto &session = sessions[0];
-    {
-        BENCHMARK_MS();
-        session.SetUrl(cpr::Url{url});
-    }
-    auto result = session.Get();
-    std::cout << "Status code: " << result.status_code << std::endl;
+    session.SetUrl(cpr::Url{url});
 
+    auto result = session.Get();
     if (result.status_code != 200)
     {
         throw std::runtime_error("Failed to get weather radar metadata");
@@ -149,10 +143,65 @@ std::vector<SampleMetaData> &NexradAPI::ListSamples()
     return radarSamplesMeta;
 }
 
+size_t NexradAPI::ParseRecord(Record &record, const char *data)
+{
+    record.compresssedSize = ToSysOrderL(*reinterpret_cast<const uint32_t *>(data));
+    data += 4;
+
+    size_t absSize = std::abs(record.compresssedSize); // apparently size can be negative, in this case just take the `abs` of it
+    size_t actualSize = absSize + 4;
+
+    std::string_view recordData(data, absSize);
+    std::istringstream sstream((std::string)recordData);
+
+    bxz::istream decompressor(sstream.rdbuf(), bxz::bz2);
+
+    if (sstream.fail())
+    {
+        std::cerr << "Failed to decompress!!" << std::endl;
+        return actualSize;
+    }
+
+    record.data.clear();
+    record.data.reserve(100 * 1024);
+
+    char chunk[16384];
+    while (decompressor.read(chunk, sizeof(chunk)) || decompressor.gcount() > 0)
+    {
+        record.data.insert(record.data.end(), chunk, chunk + decompressor.gcount());
+    }
+
+    // parse message headers
+    const uint8_t *messageCurrent = record.data.data();
+    const uint8_t *recordEnd = record.data.data() + record.data.size();
+    while (messageCurrent + 12 + sizeof(MessageHeader) <= recordEnd)
+    {
+        auto &message = record.messages.emplace_back();
+        message.header = *reinterpret_cast<const MessageHeader *>(messageCurrent + 12);
+        message.index = static_cast<size_t>(messageCurrent - record.data.data() + sizeof(MessageHeader) + 12);
+
+        auto &header = message.header;
+        header.date = ToSysOrderS(header.date);
+        header.num_segs = ToSysOrderS(header.num_segs);
+        header.seq_num = ToSysOrderS(header.seq_num);
+        header.size = ToSysOrderS(header.size) * 2;
+        header.timeMS = ToSysOrderL(header.timeMS);
+
+        if (header.type == 31 || header.type == 29)
+        {
+            messageCurrent += header.size + 12;
+        }
+        else
+        {
+            messageCurrent += 2432;
+        }
+    }
+    return actualSize;
+}
+
 ArchiveII NexradAPI::GetSample(SampleMetaData meta)
 {
     std::string url = "https://unidata-nexrad-level2.s3.amazonaws.com/" + meta.key;
-    // session.SetUrl(cpr::Url{url});
 
     constexpr uint32_t numChunks = 2;
     size_t chunkSize = (meta.size + numChunks - 1) / numChunks;
@@ -160,22 +209,19 @@ ArchiveII NexradAPI::GetSample(SampleMetaData meta)
     std::vector<cpr::Response> chunks(numChunks);
     std::vector<std::thread> workers;
 
+    for (uint32_t i = 0; i < numChunks; i++)
     {
-        BENCHMARK_MS();
-        for (uint32_t i = 0; i < numChunks; i++)
-        {
-            workers.emplace_back([&, i]
-                                 {
+        workers.emplace_back([&, i]
+                             {
                 auto &session = sessions[i];
                 size_t start = i * chunkSize;
                 size_t end = std::min((i + 1) * chunkSize - 1, meta.size - 1);
                 session.SetUrl(cpr::Url{url});
                 session.SetHeader(cpr::Header{{"Range", std::format("bytes={}-{}",start,end)}});
                 chunks[i] = std::move(session.Get()); });
-        }
-        for (auto &t : workers)
-            t.join();
     }
+    for (auto &t : workers)
+        t.join();
 
     std::string dataText;
     dataText.reserve(meta.size);
@@ -189,13 +235,6 @@ ArchiveII NexradAPI::GetSample(SampleMetaData meta)
         dataText += chunks[i].text;
     }
 
-    // if (result.status_code != 200 || result.error)
-    // {
-    //     throw std::runtime_error("Failed to get download file!");
-    // }
-
-    std::cout << "Size: " << dataText.length() << std::endl;
-
     ArchiveII archive;
 
     const char *data = dataText.c_str();
@@ -207,68 +246,11 @@ ArchiveII NexradAPI::GetSample(SampleMetaData meta)
 
     const char *current = data + sizeof(ArchiveIIHeader);
 
-    // auto start = std::chrono::steady_clock::now();
-
     while (current - data < dataText.length())
     {
-        // auto recordStart = std::chrono::steady_clock::now();
-        CompressedRecord &record = archive.records.emplace_back();
-        record.compresssedSize = ToSysOrderL(*reinterpret_cast<const uint32_t *>(current));
-        current += 4;
-
-        size_t actualSize = std::abs(record.compresssedSize); // apparently size can be negative, in this case just take the `abs` of it
-        std::string_view recordData(current, actualSize);
-        std::istringstream sstream((std::string)recordData);
-
-        bxz::istream decompressor(sstream.rdbuf(), bxz::bz2);
-
-        if (sstream.fail())
-        {
-            std::cerr << "Failed to decompress!!" << std::endl;
-            continue;
-        }
-
-        record.data.clear();
-        record.data.reserve(100 * 1024);
-
-        char chunk[16384];
-        while (decompressor.read(chunk, sizeof(chunk)) || decompressor.gcount() > 0)
-        {
-            record.data.insert(record.data.end(), chunk, chunk + decompressor.gcount());
-        }
-
-        // parse message headers
-        const uint8_t *messageCurrent = record.data.data();
-        const uint8_t *recordEnd = record.data.data() + record.data.size();
-        while (messageCurrent + 12 + sizeof(MessageHeader) <= recordEnd)
-        {
-            auto &message = record.messages.emplace_back();
-            message.header = *reinterpret_cast<const MessageHeader *>(messageCurrent + 12);
-
-            auto &header = message.header;
-            header.date = ToSysOrderS(header.date);
-            header.num_segs = ToSysOrderS(header.num_segs);
-            header.seq_num = ToSysOrderS(header.seq_num);
-            header.size = ToSysOrderS(header.size) * 2;
-            header.timeMS = ToSysOrderL(header.timeMS);
-            message.index = static_cast<size_t>(messageCurrent - record.data.data() + sizeof(MessageHeader) + 12);
-
-            if (header.type == 31 || header.type == 29)
-            {
-                messageCurrent += header.size + 12;
-            }
-            else
-            {
-                messageCurrent += 2432;
-            }
-        }
-
-        current += actualSize;
-
-        // auto current = std::chrono::steady_clock::now();
-        // std::cout << "Time: " << std::chrono::duration_cast<std::chrono::milliseconds>((current - recordStart)).count() << "ms Total: "
-        //           << std::chrono::duration_cast<std::chrono::milliseconds>((current - start)).count() << "ms"
-        //           << std::endl;
+        Record &record = archive.records.emplace_back();
+        size_t size = ParseRecord(record, current);
+        current += size;
     }
 
     return archive;

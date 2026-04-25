@@ -39,12 +39,20 @@ set(CURL_USE_LIBIDN2     OFF CACHE BOOL "" FORCE)
 # Now add cpr's subdirectory (which will trigger curl's FetchContent)
 add_subdirectory(${cpr_SOURCE_DIR} ${cpr_BINARY_DIR})
 
+FetchContent_Declare(
+	glm
+	GIT_REPOSITORY	https://github.com/g-truc/glm.git
+	GIT_TAG 	1.0.3 #refs/tags/1.0.1
+)
+
+FetchContent_MakeAvailable(glm)
+
 add_executable(Radar ${SRC})
-target_link_libraries(Radar PUBLIC cpr::cpr bxzstr::bxzstr SDL3::SDL3)
+target_link_libraries(Radar PRIVATE cpr::cpr bxzstr::bxzstr SDL3::SDL3 glm::glm)
 if (CMAKE_BUILD_TYPE STREQUAL "Release")
     target_compile_options(Radar PUBLIC -O3 -flto -march=native)
     target_link_options(Radar PUBLIC -flto)
 else()
     target_compile_options(Radar PUBLIC -g)
 endif()
-target_include_directories(Radar PRIVATE thirdparty/tinyxml2)
+target_include_directories(Radar PRIVATE thirdparty/tinyxml2 src/)
