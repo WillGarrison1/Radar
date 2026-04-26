@@ -1,20 +1,16 @@
 #pragma once
 
 #include <SDL3/SDL.h>
+#include <Renderer.hpp>
 #include "StormProcessor.hpp"
 
-class RadarRenderer
+class RadarRenderer : public Renderer
 {
 public:
     RadarRenderer();
     ~RadarRenderer();
 
-    void Update(float deltaTime);
-
-    inline bool ShouldQuit()
-    {
-        return shouldQuit;
-    }
+    void Update(float deltaTime) override;
 
 private:
     void AddRadialGeometry(float radialWidth, Radial &radial, std::vector<SDL_Vertex> &vertices, std::vector<int> &indices);
@@ -22,9 +18,6 @@ private:
     void UpdateEvents();
     void OnKeyPress(SDL_Event &e);
 
-    SDL_Renderer *renderer;
-    SDL_Window *window;
-    bool shouldQuit;
     StormProcessor processor;
 
     SDL_FPoint circleCenter = {400, 300};

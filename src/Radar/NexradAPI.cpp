@@ -12,7 +12,7 @@
 
 #include "Benchmark.hpp"
 
-static std::string radarName = "KLSX";
+static std::string radarName = "KABR";
 
 NexradAPI::NexradAPI()
 {

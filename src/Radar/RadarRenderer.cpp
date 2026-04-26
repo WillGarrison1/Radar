@@ -6,26 +6,12 @@
 #include <iostream>
 #include <stdexcept>
 
-RadarRenderer::RadarRenderer() : shouldQuit(false), renderer(nullptr), window(nullptr), processor({})
+RadarRenderer::RadarRenderer() : processor({})
 {
-    if (!SDL_WasInit(SDL_INIT_VIDEO))
-    {
-        bool success = SDL_Init(SDL_INIT_VIDEO);
-        if (!success)
-        {
-            throw std::runtime_error("Failed to initialize SDL!");
-        }
-    }
-    if (!SDL_CreateWindowAndRenderer("Radar", 800, 600, 0, &window, &renderer))
-    {
-        throw std::runtime_error("Failed to create window and renderer!");
-    }
 }
 
 RadarRenderer::~RadarRenderer()
 {
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
 }
 
 void DrawCircle(SDL_Renderer *renderer, SDL_FPoint center, float radius, SDL_FColor color)
@@ -181,7 +167,7 @@ void RadarRenderer::UpdateEvents()
     {
         if (e.type == SDL_EVENT_QUIT)
         {
-            shouldQuit = true;
+            hasQuit = true;
         }
         if (e.type == SDL_EVENT_KEY_DOWN)
         {
