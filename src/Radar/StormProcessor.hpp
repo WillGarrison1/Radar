@@ -85,33 +85,11 @@ public:
     void Update();
 
     std::vector<SampleTimePoint> GetTimePoints();
-    void Process(SampleTimePoint timestep);
-
-    inline std::map<SampleTimePoint, RadarScan> &GetCached()
-    {
-        return cache;
-    }
-
-    inline std::vector<SampleTimePoint> GetPending()
-    {
-        std::vector<SampleTimePoint> vec;
-        for (uint64_t point : pending)
-        {
-            SampleTimePoint tp(std::chrono::duration_cast<SampleTimePoint::duration>(std::chrono::nanoseconds{point}));
-            vec.push_back(tp);
-        }
-        return vec;
-    }
+    RadarScan CreateScan(SampleTimePoint timePoint);
 
 private:
-    RadarScan CreateScan(ArchiveII archive);
     void ApplyMessage(RadarScan &scan, Record &record, Message &message);
     void ProcessDataBlock(Radial &radial, std::vector<Gate> &gates, const uint8_t *block);
 
-    std::mutex cacheMutex;
-    std::map<SampleTimePoint, RadarScan> cache;
-    std::unordered_set<uint64_t> pending;
     NexradAPI nexradAPI;
-    TaskQueue queue;
-    std::thread worker;
 };

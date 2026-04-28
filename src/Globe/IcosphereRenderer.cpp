@@ -4,16 +4,16 @@
 #include <algorithm>
 #include <random>
 
-float AvgZ(const Triangle &triangle, const std::vector<glm::vec3> &points, glm::vec3 camPos)
+float AvgZ(const Triangle &triangle, const std::vector<PointValue> &points, glm::vec3 camPos)
 {
-    auto v1 = points[triangle.v1] - camPos;
-    auto v2 = points[triangle.v2] - camPos;
-    auto v3 = points[triangle.v3] - camPos;
+    auto v1 = points[triangle.v1].point - camPos;
+    auto v2 = points[triangle.v2].point - camPos;
+    auto v3 = points[triangle.v3].point - camPos;
 
     return (v1.z + v2.z + v3.z) / 3.0f;
 }
 
-IcosphereRenderer::IcosphereRenderer() : cameraPos({0, 0, -2}), icosphere(4)
+IcosphereRenderer::IcosphereRenderer() : cameraPos({0, 0, -2}), icosphere(6)
 {
 }
 
@@ -48,7 +48,7 @@ void IcosphereRenderer::Update(float deltaTime)
             static_cast<float>(rand()) / static_cast<float>(RAND_MAX),
             static_cast<float>(rand()) / static_cast<float>(RAND_MAX),
             static_cast<float>(rand()) / static_cast<float>(RAND_MAX), 1};
-        SDL_Vertex vert{WorldToScreen(point), color, {0, 0}};
+        SDL_Vertex vert{WorldToScreen(point.point), color, {0, 0}};
         vertices.push_back(vert);
     }
 

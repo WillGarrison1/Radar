@@ -83,7 +83,7 @@ void IcoflatRenderer::Update(float deltaTime)
 
     for (const auto &point : icosphere.GetPoints())
     {
-        GlobeCoords coords = ToLatLon(point);
+        GlobeCoords coords = ToLatLon(point.point);
         SDL_FPoint uv = GlobeToUV(coords);
         SDL_FColor color{
             uv.x,

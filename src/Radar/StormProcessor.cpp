@@ -14,8 +14,7 @@ enum class GateType
     Velocity
 };
 
-StormProcessor::StormProcessor() : pending({}), queue({}), worker([&]
-                                                                  { this->queue.WorkerLoop(); })
+StormProcessor::StormProcessor()
 {
     float seconds = 0.5;
     while (nexradAPI.ListSamples().size() == 0 && seconds < 30)
@@ -29,8 +28,6 @@ StormProcessor::StormProcessor() : pending({}), queue({}), worker([&]
 
 StormProcessor::~StormProcessor()
 {
-    this->queue.Stop();
-    this->worker.join();
 }
 
 void StormProcessor::Refresh()
@@ -51,53 +48,6 @@ std::vector<SampleTimePoint> StormProcessor::GetTimePoints()
     }
 
     return list;
-}
-
-void StormProcessor::Process(SampleTimePoint timePoint)
-{
-    if (this->pending.contains(timePoint.time_since_epoch().count()))
-    {
-        return; // already being processed or downloaded
-    }
-
-    if (nexradAPI.ListSamples().empty())
-    {
-        std::cerr << "No samples!" << std::endl;
-        return;
-    }
-
-    SampleMetaData meta{.key = ""};
-    for (auto &sampleMeta : nexradAPI.ListSamples())
-    {
-        if (sampleMeta.time == timePoint)
-        {
-            meta = sampleMeta;
-            break;
-        }
-    }
-    if (meta.key.empty())
-    {
-        std::cout << "Could not find sample metadata" << std::endl;
-        return;
-    }
-
-    pending.emplace(timePoint.time_since_epoch().count());
-    queue.Push([this, meta]()
-               {   
-                auto start = std::chrono::steady_clock::now();
-                auto archive = nexradAPI.GetSample(meta);
-                auto end = std::chrono::steady_clock::now();
-                std::cout << "Download took: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
-                
-                start = std::chrono::steady_clock::now();
-                auto result = CreateScan(std::move(archive)); 
-                end = std::chrono::steady_clock::now();
-                std::cout << "\nProcess took: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count() << "ms" << std::endl;
-                
-                std::lock_guard lock(this->cacheMutex);
-                this->cache[meta.time] = result;
-                this->pending.erase(meta.time.time_since_epoch().count()); });
-    return;
 }
 
 void StormProcessor::ProcessDataBlock(Radial &radial, std::vector<Gate> &gates, const uint8_t *block)
@@ -212,8 +162,32 @@ void StormProcessor::ApplyMessage(RadarScan &scan, Record &record, Message &mess
     }
 }
 
-RadarScan StormProcessor::CreateScan(ArchiveII archive)
+RadarScan StormProcessor::CreateScan(SampleTimePoint timePoint)
 {
+
+    if (nexradAPI.ListSamples().empty())
+    {
+        std::cerr << "No samples!" << std::endl;
+        return {};
+    }
+
+    SampleMetaData meta{.key = ""};
+    for (auto &sampleMeta : nexradAPI.ListSamples())
+    {
+        if (sampleMeta.time == timePoint)
+        {
+            meta = sampleMeta;
+            break;
+        }
+    }
+    if (meta.key.empty())
+    {
+        std::cout << "Could not find sample metadata" << std::endl;
+        return {};
+    }
+
+    auto archive = nexradAPI.GetSample(meta);
+
     RadarScan scan;
     for (auto &record : archive.records)
     {

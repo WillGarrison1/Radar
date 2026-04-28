@@ -19,7 +19,7 @@ enum class RenderType
 
 int main(int argc, char **argv)
 {
-    constexpr RenderType t = RenderType::Icoflat;
+    constexpr RenderType t = RenderType::Radar;
     Renderer *renderer;
 
     switch (t)

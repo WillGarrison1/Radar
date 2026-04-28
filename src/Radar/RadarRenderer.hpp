@@ -2,7 +2,7 @@
 
 #include <SDL3/SDL.h>
 #include <Renderer.hpp>
-#include "StormProcessor.hpp"
+#include "StormCache.hpp"
 
 class RadarRenderer : public Renderer
 {
@@ -18,7 +18,7 @@ private:
     void UpdateEvents();
     void OnKeyPress(SDL_Event &e);
 
-    StormProcessor processor;
+    StormCache processor;
 
     SDL_FPoint circleCenter = {400, 300};
     float metersPerPixel = 100;
