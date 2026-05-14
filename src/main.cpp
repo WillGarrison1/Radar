@@ -19,7 +19,8 @@ enum class RenderType
 
 int main(int argc, char **argv)
 {
-    constexpr RenderType t = RenderType::Radar;
+    constexpr RenderType t = RenderType::Icosphere;
+    Icosphere ico(7);
     Renderer *renderer;
 
     switch (t)
@@ -27,8 +28,8 @@ int main(int argc, char **argv)
     case RenderType::Radar:
         renderer = new RadarRenderer();
         break;
-    case RenderType::Icosphere:
         renderer = new IcosphereRenderer();
+    case RenderType::Icosphere:
         break;
     case RenderType::Icoflat:
         renderer = new IcoflatRenderer();
