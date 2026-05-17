@@ -1,11 +1,12 @@
 #include <iostream>
 #include <format>
 #include <thread>
+#include <glm/glm.hpp>
 
 #include "Radar/RadarRenderer.hpp"
 #include "Radar/StormProcessor.hpp"
-#include "Globe/IcosphereRenderer.hpp"
-#include "Globe/IcoflatRenderer.hpp"
+#include "Globe/QuadsphereRenderer.hpp"
+#include "Globe/QuadflatRenderer.hpp"
 
 constexpr float TARGET_FPS = 60;
 constexpr float TARGET_FRAMETIME = 1 / TARGET_FPS;
@@ -13,14 +14,16 @@ constexpr float TARGET_FRAMETIME = 1 / TARGET_FPS;
 enum class RenderType
 {
     Radar,
-    Icosphere,
-    Icoflat
+    Quadsphere,
+    Quadflat
 };
 
 int main(int argc, char **argv)
 {
-    constexpr RenderType t = RenderType::Icosphere;
-    Icosphere ico(7);
+    constexpr RenderType t = RenderType::Quadflat;
+
+    Quadsphere quadsphere(1);
+
     Renderer *renderer;
 
     switch (t)
@@ -28,11 +31,11 @@ int main(int argc, char **argv)
     case RenderType::Radar:
         renderer = new RadarRenderer();
         break;
-        renderer = new IcosphereRenderer();
-    case RenderType::Icosphere:
+    case RenderType::Quadsphere:
+        renderer = new QuadsphereRenderer();
         break;
-    case RenderType::Icoflat:
-        renderer = new IcoflatRenderer();
+    case RenderType::Quadflat:
+        renderer = new QuadflatRenderer();
         break;
     default:
         std::cerr << "Unknown Renderer" << std::endl;

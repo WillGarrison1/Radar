@@ -12,7 +12,7 @@ Renderer::Renderer() : hasQuit(false)
             throw std::runtime_error("Failed to initialize SDL!");
         }
     }
-    if (!SDL_CreateWindowAndRenderer("Icosphere", 800, 600, 0, &window, &renderer))
+    if (!SDL_CreateWindowAndRenderer("Quadsphere", 800, 600, 0, &window, &renderer))
     {
         throw std::runtime_error("Failed to create window and renderer!");
     }

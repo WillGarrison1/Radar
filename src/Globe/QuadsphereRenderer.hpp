@@ -2,13 +2,13 @@
 
 #include <SDL3/SDL.h>
 #include <Renderer.hpp>
-#include "Icosphere.hpp"
+#include "Quadsphere.hpp"
 
-class IcosphereRenderer : public Renderer
+class QuadsphereRenderer : public Renderer
 {
 public:
-    IcosphereRenderer();
-    ~IcosphereRenderer();
+    QuadsphereRenderer();
+    ~QuadsphereRenderer();
 
     void Update(float deltaTime) override;
 
@@ -16,6 +16,6 @@ private:
     SDL_FPoint WorldToScreen(glm::vec3 world);
 
     static constexpr float scaleFactor = 100;
-    Icosphere icosphere;
+    Quadsphere quadsphere;
     glm::vec3 cameraPos;
 };

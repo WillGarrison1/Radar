@@ -1,6 +1,6 @@
 #include "QuadstormProcessor.hpp"
 
-IcostormProcessor::IcostormProcessor()
+QuadstormProcessor::QuadstormProcessor()
 {
     
 }

@@ -1,30 +1,30 @@
-#include "IcoflatRenderer.hpp"
+#include "QuadflatRenderer.hpp"
 
 #include <cmath>
 #include <glm/glm.hpp>
 
-IcoflatRenderer::IcoflatRenderer() : icosphere(7)
+QuadflatRenderer::QuadflatRenderer() : quadsphere(0)
 {
 }
 
-IcoflatRenderer::~IcoflatRenderer()
+QuadflatRenderer::~QuadflatRenderer()
 {
 }
 
-IcoflatRenderer::GlobeCoords IcoflatRenderer::ToLatLon(glm::vec3 point)
+QuadflatRenderer::GlobeCoords QuadflatRenderer::ToLatLon(glm::vec3 point)
 {
     // assumes point is normalized
     return {glm::degrees(std::asin(point.y)),
             glm::degrees(std::atan2(point.z, point.x))};
 }
 
-SDL_FPoint IcoflatRenderer::GlobeToUV(IcoflatRenderer::GlobeCoords coords)
+SDL_FPoint QuadflatRenderer::GlobeToUV(QuadflatRenderer::GlobeCoords coords)
 {
     return {(coords.lon + 180.0f) / 360.0f,
             (coords.lat + 90.0f) / 180.0f};
 }
 
-void IcoflatRenderer::FixVertices(Triangle &triangle, std::vector<SDL_Vertex> &vertices, std::vector<int> &indices)
+void QuadflatRenderer::FixVertices(Triangle &triangle, std::vector<SDL_Vertex> &vertices, std::vector<int> &indices)
 {
     auto shiftVertex = [&](int v_idx, float x_offset, float color_offset, bool condition) -> int
     {
@@ -59,7 +59,7 @@ void IcoflatRenderer::FixVertices(Triangle &triangle, std::vector<SDL_Vertex> &v
     indices.insert(indices.end(), {right1, right2, right3});
 }
 
-bool IcoflatRenderer::OnSeam(Triangle &triangle, std::vector<SDL_Vertex> &vertices)
+bool QuadflatRenderer::OnSeam(Triangle &triangle, std::vector<SDL_Vertex> &vertices)
 {
     float maxU = std::max(std::max(vertices[triangle.v1].position.x,
                                    vertices[triangle.v2].position.x),
@@ -70,7 +70,7 @@ bool IcoflatRenderer::OnSeam(Triangle &triangle, std::vector<SDL_Vertex> &vertic
     return maxU - minU > 400.0f;
 }
 
-void IcoflatRenderer::Update(float deltaTime)
+void QuadflatRenderer::Update(float deltaTime)
 {
     SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 1);
     SDL_RenderClear(renderer);
@@ -78,21 +78,24 @@ void IcoflatRenderer::Update(float deltaTime)
     std::vector<SDL_Vertex> vertices;
     std::vector<int> indices;
 
-    vertices.reserve(icosphere.GetPoints().size());
-    indices.reserve(icosphere.GetTriangles().size());
+    vertices.reserve(quadsphere.GetPoints().size());
+    indices.reserve(quadsphere.GetTriangles().size());
 
-    for (const auto &point : icosphere.GetPoints())
+    for (const auto &point : quadsphere.GetPoints())
     {
         GlobeCoords coords = ToLatLon(point.point);
         SDL_FPoint uv = GlobeToUV(coords);
         SDL_FColor color{
-            uv.x,
-            uv.y,
-            0.5f, 1.0f};
+            (float)rand() / RAND_MAX,
+            (float)rand() / RAND_MAX,
+            (float)rand() / RAND_MAX,
+            // uv.y,
+            // 0.5f,
+            1.0f};
         vertices.push_back({{uv.x * 800, uv.y * 600}, color, {0, 0}});
     }
 
-    for (auto triangle : icosphere.GetTriangles())
+    for (auto triangle : quadsphere.GetTriangles())
     {
         if (OnSeam(triangle, vertices))
         {

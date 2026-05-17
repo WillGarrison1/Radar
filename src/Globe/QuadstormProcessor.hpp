@@ -2,15 +2,15 @@
 
 #include <map>
 #include <Radar/StormProcessor.hpp>
-#include "Icosphere.hpp"
+#include "Quadsphere.hpp"
 
-class IcostormProcessor
+class QuadstormProcessor
 {
 public:
-    IcostormProcessor();
-    ~IcostormProcessor();
+    QuadstormProcessor();
+    ~QuadstormProcessor();
 
 private:
-    std::map<SampleTimePoint, Icosphere> icospheres;
+    std::map<SampleTimePoint, Quadsphere> icospheres;
     
 };

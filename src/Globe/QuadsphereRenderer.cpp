@@ -1,4 +1,4 @@
-#include "IcosphereRenderer.hpp"
+#include "QuadsphereRenderer.hpp"
 
 #include <stdexcept>
 #include <algorithm>
@@ -13,15 +13,15 @@ float AvgZ(const Triangle &triangle, const std::vector<PointValue> &points, glm:
     return (v1.z + v2.z + v3.z) / 3.0f;
 }
 
-IcosphereRenderer::IcosphereRenderer() : cameraPos({0, 0, -2}), icosphere(6)
+QuadsphereRenderer::QuadsphereRenderer() : cameraPos({0, 0, -2}), quadsphere(8)
 {
 }
 
-IcosphereRenderer::~IcosphereRenderer()
+QuadsphereRenderer::~QuadsphereRenderer()
 {
 }
 
-SDL_FPoint IcosphereRenderer::WorldToScreen(glm::vec3 world)
+SDL_FPoint QuadsphereRenderer::WorldToScreen(glm::vec3 world)
 {
     glm::vec3 relativePoint = world - cameraPos;
     if (relativePoint.z <= 0)
@@ -30,14 +30,14 @@ SDL_FPoint IcosphereRenderer::WorldToScreen(glm::vec3 world)
     return p;
 }
 
-void IcosphereRenderer::Update(float deltaTime)
+void QuadsphereRenderer::Update(float deltaTime)
 {
     SDL_SetRenderDrawColorFloat(renderer, 0, 0, 0, 1);
     SDL_RenderClear(renderer);
 
     SDL_SetRenderDrawColorFloat(renderer, 0, 0, 1, 1);
 
-    auto points = icosphere.GetPoints();
+    auto points = quadsphere.GetPoints();
 
     std::vector<SDL_Vertex> vertices;
     std::vector<int> indices;
@@ -52,7 +52,7 @@ void IcosphereRenderer::Update(float deltaTime)
         vertices.push_back(vert);
     }
 
-    auto triangles = icosphere.GetTriangles();
+    auto triangles = quadsphere.GetTriangles();
 
     std::sort(triangles.begin(), triangles.end(), [&](const Triangle &a, const Triangle &b)
               {
