@@ -7,35 +7,129 @@
 #include <numeric>
 #include <iostream>
 
+CubeFace NormPointToUV(const glm::vec3 &p, float &u, float &v)
+{
+    auto x = std::abs(p.x);
+    auto y = std::abs(p.y);
+    auto z = std::abs(p.z);
+
+    CubeFace face;
+
+    if (x >= y && x >= z)
+    {
+        face = (p.x >= 0) ? POSX : NEGX;
+    }
+    else if (y >= x && y >= z)
+    {
+        face = (p.y >= 0) ? POSY : NEGY;
+    }
+    else
+    {
+        face = (p.z >= 0) ? POSZ : NEGZ;
+    }
+
+    switch (face)
+    {
+    case POSX:
+        u = p.z / x;
+        v = p.y / x;
+        break;
+    case NEGX:
+        u = -p.z / x;
+        v = p.y / x;
+        break;
+    case POSY:
+        u = p.x / y;
+        v = p.z / y;
+        break;
+    case NEGY:
+        u = p.x / y;
+        v = -p.z / y;
+        break;
+    case POSZ:
+        u = -p.x / z;
+        v = p.y / z;
+        break;
+    case NEGZ:
+        u = p.x / z;
+        v = p.y / z;
+        break;
+    default:
+        u = v = 0;
+        break;
+    }
+
+    u = (u + 1.0f) / 2.0f;
+    v = (v + 1.0f) / 2.0f;
+
+    return face;
+}
+
+static glm::vec3 UVToCubePoint(CubeFace face, float u, float v)
+{
+    float nx = u * 2.0f - 1.0f;
+    float ny = v * 2.0f - 1.0f;
+
+    switch (face)
+    {
+    case POSX:
+        return glm::vec3(1.0f, ny, nx);
+    case NEGX:
+        return glm::vec3(-1.0f, ny, -nx);
+    case POSY:
+        return glm::vec3(nx, 1.0f, ny);
+    case NEGY:
+        return glm::vec3(nx, -1.0f, -ny);
+    case POSZ:
+        return glm::vec3(-nx, ny, 1.0f);
+    case NEGZ:
+        return glm::vec3(-nx, -ny, -1.0f);
+    default:
+        return glm::vec3(0.0f);
+    }
+}
+
 Quadsphere::Quadsphere(uint8_t depth)
 {
     // clang-format off
-    points = {
-    {{1, 1, 1},0},{{-1, 1, 1},0},{{1, 1, -1},0},{{-1, 1, -1},0},
-    {{1, -1, 1},0},{{-1, -1, 1},0},{{1, -1, -1},0},{{-1, -1, -1},0}
-    };
 
     quadNodes.insert(quadNodes.end(),
     {
-        {3,2,0,1},{1,0,4,5},{3,1,5,7},{2,3,7,6},
-        {0,2,6,4},{7,6,4,5}
+        {0,0,0,POSX}, // POSX
+        {0,0,0,NEGX}, // NEGX
+        {0,0,0,POSY}, // POSY
+        {0,0,0,NEGY}, // NEGY
+        {0,0,0,POSZ}, // POSZ
+        {0,0,0,NEGZ}, // NEGZ
     });
     // clang-format on
 
-    for (int i = 0; i < 8; i++)
+    for (auto &quad : quadNodes)
     {
-        auto &v = points[i];
-        v.point = glm::normalize(v.point);
-        LatLonCoords latLon(v.point);
-        XYKey key(latLon.lon, latLon.lat);
-        indices[key] = i;
+        float uMin, uMax, vMin, vMax;
+        quad.GetUV(uMin, uMax, vMin, vMax);
+        auto v1 = UVToCubePoint(quad.face, uMin, vMin);
+        auto v2 = UVToCubePoint(quad.face, uMax, vMin);
+        auto v3 = UVToCubePoint(quad.face, uMin, vMax);
+        auto v4 = UVToCubePoint(quad.face, uMax, vMax);
+
+        for (auto point : {v1, v2, v3, v4})
+        {
+            XYZKey key(point.x, point.y, point.z);
+            if (!indices.contains(key))
+            {
+                indices[key] = points.size();
+                points.push_back({glm::normalize(point), 0});
+            }
+        }
     }
 
     for (uint8_t i = 0; i < depth; i++)
     {
         Subdivide();
-        std::cout << "Subdividing quadsphere: " << points.size() << " points - " << GetTriangles().size() << " triangles" << std::endl;
     }
+    UpdateGeometry();
+    std::cout << "Created quadsphere with " << points.size() << " points and " << GetTriangles().size() << " triangles" << std::endl;
 }
 
 Quadsphere::~Quadsphere()
@@ -44,7 +138,7 @@ Quadsphere::~Quadsphere()
 
 void Quadsphere::GetLeafFaces(QuadNode &face, std::vector<uint32_t> &leafs)
 {
-    if (!face.subFaces[0])
+    if (!face.subFacesStart)
     {
         leafs.emplace_back(GetIndex(face));
         return;
@@ -52,13 +146,14 @@ void Quadsphere::GetLeafFaces(QuadNode &face, std::vector<uint32_t> &leafs)
 
     for (int i = 0; i < 4; i++)
     {
-        auto &tree = GetNode(face.subFaces[i]);
+        auto &tree = GetNode(face.subFacesStart + i);
         GetLeafFaces(tree, leafs);
     }
 }
 
-std::vector<Triangle> Quadsphere::GetTriangles()
+void Quadsphere::UpdateGeometry()
 {
+    triangles.clear();
 
     uint32_t numLeafs = quadNodes.size();
     uint32_t prevLayerNum = 6;
@@ -68,62 +163,66 @@ std::vector<Triangle> Quadsphere::GetTriangles()
         prevLayerNum *= 4;
     }
 
-    std::vector<Triangle> triangles;
     std::vector<uint32_t> leafs;
 
     triangles.reserve(numLeafs * 2);
     leafs.reserve(numLeafs);
 
     // Get the leaf nodes for the 6 root faces
-    GetLeafFaces(GetNode(0), leafs);
-    GetLeafFaces(GetNode(1), leafs);
-    GetLeafFaces(GetNode(2), leafs);
-    GetLeafFaces(GetNode(3), leafs);
-    GetLeafFaces(GetNode(4), leafs);
-    GetLeafFaces(GetNode(5), leafs);
+    GetLeafFaces(GetNode(POSX), leafs);
+    GetLeafFaces(GetNode(NEGX), leafs);
+    GetLeafFaces(GetNode(POSY), leafs);
+    GetLeafFaces(GetNode(NEGY), leafs);
+    GetLeafFaces(GetNode(POSZ), leafs);
+    GetLeafFaces(GetNode(NEGZ), leafs);
 
     for (auto leaf : leafs)
     {
-        auto quad = GetNode(leaf).face;
-        triangles.push_back({quad.v1, quad.v2, quad.v4});
-        triangles.push_back({quad.v2, quad.v3, quad.v4});
-    }
+        auto &quad = GetNode(leaf);
 
-    return triangles;
+        float uMin, uMax, vMin, vMax;
+        quad.GetUV(uMin, uMax, vMin, vMax);
+
+        auto v1 = UVToCubePoint(quad.face, uMin, vMin);
+        auto v2 = UVToCubePoint(quad.face, uMax, vMin);
+        auto v3 = UVToCubePoint(quad.face, uMin, vMax);
+        auto v4 = UVToCubePoint(quad.face, uMax, vMax);
+
+        XYZKey v1Key(v1.x, v1.y, v1.z);
+        XYZKey v2Key(v2.x, v2.y, v2.z);
+        XYZKey v3Key(v3.x, v3.y, v3.z);
+        XYZKey v4Key(v4.x, v4.y, v4.z);
+
+        triangles.emplace_back(indices[v1Key], indices[v2Key], indices[v3Key]);
+        triangles.emplace_back(indices[v2Key], indices[v3Key], indices[v4Key]);
+    }
 }
 
 QuadNode &Quadsphere::GetFace(const glm::vec3 &point)
 {
-    QuadNode &rootNode = quadNodes[0];
-    for (int i = 1; i < 6; i++)
-    {
-        if (HasPoint(quadNodes[i], point))
-        {
-            rootNode = quadNodes[i];
-        }
-    }
+    float u, v;
+    auto face = NormPointToUV(point, u, v);
 
-    bool f = HasPoint(rootNode, point);
-
-    while (true)
-    {
-        QuadNode &child = GetChild(rootNode, point);
-        if (child == rootNode)
-        {
-            break;
-        }
-        rootNode = child;
-    }
-
-    return rootNode;
+    auto faceRoot = GetNode(face);
+    return GetChild(faceRoot, u, v);
 }
 
-QuadNode &Quadsphere::GetChild(const QuadNode &node, glm::vec3 point)
+QuadNode &Quadsphere::GetChild(QuadNode &node, float u, float v)
 {
-    float u, v;
-    node.NormPointToUV(point, u, v);
+    if (!node.subFacesStart)
+    {
+        return node;
+    }
 
-    
+    uint8_t level = node.level + 1;
+    uint8_t gridSize = 1 << level;
+    uint32_t x = u * gridSize;
+    uint32_t y = v * gridSize;
+
+    uint32_t childX = x - node.x * 2;
+    uint32_t childY = y - node.y * 2;
+
+    return GetChild(GetNode(node.subFacesStart + childY * 2 + childX), u, v);
 }
 
 glm::vec3 Quadsphere::GetMidpoint(glm::vec3 a, glm::vec3 b)
@@ -134,27 +233,19 @@ glm::vec3 Quadsphere::GetMidpoint(glm::vec3 a, glm::vec3 b)
 bool Quadsphere::HasPoint(QuadNode &t, const glm::vec3 &point)
 {
     float u, v;
-    t.NormPointToUV(point, u, v);
+    auto face = NormPointToUV(point, u, v);
 
-    float uV1, vV1;
-    t.NormPointToUV(points[t.face.v1].point, uV1, vV1);
+    if (t.face != face)
+    {
+        return false;
+    }
 
-    float uV2, vV2;
-    t.NormPointToUV(points[t.face.v2].point, uV2, vV2);
+    float size = 1.0f / (1 << t.level);
 
-    float uV3, vV3;
-    t.NormPointToUV(points[t.face.v3].point, uV3, vV3);
-
-    float uV4, vV4;
-    t.NormPointToUV(points[t.face.v4].point, uV4, vV4);
-
-    float uFace[4] = {uV1, uV2, uV3, uV4};
-    float vFace[4] = {vV1, vV2, vV3, vV4};
-
-    float uMin = *std::min_element(uFace, uFace + 4);
-    float uMax = *std::max_element(uFace, uFace + 4);
-    float vMin = *std::min_element(vFace, vFace + 4);
-    float vMax = *std::max_element(vFace, vFace + 4);
+    float uMin = t.x * size;
+    float uMax = (t.x + 1) * size;
+    float vMin = t.y * size;
+    float vMax = (t.y + 1) * size;
 
     return uMax >= u && u >= uMin &&
            vMax >= v && v >= vMin;
@@ -162,61 +253,48 @@ bool Quadsphere::HasPoint(QuadNode &t, const glm::vec3 &point)
 
 void Quadsphere::Subdivide(QuadNode &face)
 {
-    if (face.subFaces[0]) // go to child faces
+    if (face.subFacesStart) // go to child faces
     {
-        Subdivide(quadNodes[face.subFaces[0]]);
-        Subdivide(quadNodes[face.subFaces[1]]);
-        Subdivide(quadNodes[face.subFaces[2]]);
-        Subdivide(quadNodes[face.subFaces[3]]);
+        uint32_t index = GetIndex(face); // use indexes because references can become invalidated after calls to subdivide
+        Subdivide(quadNodes[GetNode(index).subFacesStart]);
+        Subdivide(quadNodes[GetNode(index).subFacesStart + 1]);
+        Subdivide(quadNodes[GetNode(index).subFacesStart + 2]);
+        Subdivide(quadNodes[GetNode(index).subFacesStart + 3]);
         return;
     }
 
-    auto [v1Index, v2Index, v3Index, v4Index] = face.face;
+    QuadNode topLeft(face.x * 2, face.y * 2, face.level + 1, face.face);
+    QuadNode topRight(face.x * 2 + 1, face.y * 2, face.level + 1, face.face);
+    QuadNode bottomLeft(face.x * 2, face.y * 2 + 1, face.level + 1, face.face);
+    QuadNode bottomRight(face.x * 2 + 1, face.y * 2 + 1, face.level + 1, face.face);
 
-    auto v1 = points[v1Index].point;
-    auto v2 = points[v2Index].point;
-    auto v3 = points[v3Index].point;
-    auto v4 = points[v4Index].point;
+    face.subFacesStart = quadNodes.size();
 
-    glm::vec3 midpoints[5];
+    // add new points (if needed)
+    float uMin, uMax, vMin, vMax;
+    face.GetUV(uMin, uMax, vMin, vMax);
+    auto v1 = UVToCubePoint(face.face, (uMin + uMax) / 2, vMin);
+    auto v2 = UVToCubePoint(face.face, uMax, (vMin + vMax) / 2);
+    auto v3 = UVToCubePoint(face.face, (uMin + uMax) / 2, vMax);
+    auto v4 = UVToCubePoint(face.face, uMin, (vMin + vMax) / 2);
+    auto v5 = UVToCubePoint(face.face, (uMin + uMax) / 2, (vMin + vMax) / 2);
 
-    midpoints[0] = glm::normalize(GetMidpoint(v1, v2));
-    midpoints[1] = glm::normalize(GetMidpoint(v2, v3));
-    midpoints[2] = glm::normalize(GetMidpoint(v3, v4));
-    midpoints[3] = glm::normalize(GetMidpoint(v4, v1));
-    midpoints[4] = glm::normalize(GetMidpoint(v2, v4));
-
-    int midpointIndices[5] = {0};
-    for (int i = 0; i < sizeof(midpoints) / sizeof(midpoints[0]); i++)
+    for (auto point : {v1, v2, v3, v4, v5})
     {
-        auto point = midpoints[i];
-        LatLonCoords latLon(point);
-        XYKey key(latLon.lon, latLon.lat);
+        XYZKey key(point.x, point.y, point.z);
         if (!indices.contains(key))
         {
             indices[key] = points.size();
-            points.emplace_back(point);
+            points.push_back({glm::normalize(point), 0});
         }
-        midpointIndices[i] = indices[key];
     }
 
-    QuadNode topLeft(v1Index, midpointIndices[0], midpointIndices[4], midpointIndices[3]);
-    QuadNode topRight(midpointIndices[0], v2Index, midpointIndices[1], midpointIndices[4]);
-    QuadNode bottomRight(midpointIndices[4], midpointIndices[1], v3Index, midpointIndices[2]);
-    QuadNode bottomLeft(midpointIndices[3], midpointIndices[4], midpointIndices[2], v4Index);
-
-    face.subFaces[0] = quadNodes.size();
-    face.subFaces[1] = quadNodes.size() + 1;
-    face.subFaces[2] = quadNodes.size() + 2;
-    face.subFaces[3] = quadNodes.size() + 3;
-
-    quadNodes.insert(quadNodes.end(), {topLeft, topRight, bottomRight, bottomLeft});
+    quadNodes.insert(quadNodes.end(), {topLeft, topRight, bottomLeft, bottomRight});
 }
 
 void Quadsphere::Subdivide()
 {
     auto numPoints = points.size();
-    points.reserve(numPoints * 4 - 6);
 
     int sum = 6;
     int leafs = 6;
@@ -225,6 +303,8 @@ void Quadsphere::Subdivide()
         leafs *= 4;
         sum += leafs;
     }
+
+    points.reserve(sum * 4);
     quadNodes.reserve(sum);
 
     Subdivide(quadNodes[0]);

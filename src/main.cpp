@@ -20,10 +20,7 @@ enum class RenderType
 
 int main(int argc, char **argv)
 {
-    constexpr RenderType t = RenderType::Quadflat;
-
-    Quadsphere quadsphere(1);
-
+    constexpr RenderType t = RenderType::Quadsphere;
     Renderer *renderer;
 
     switch (t)

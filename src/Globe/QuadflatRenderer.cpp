@@ -3,7 +3,7 @@
 #include <cmath>
 #include <glm/glm.hpp>
 
-QuadflatRenderer::QuadflatRenderer() : quadsphere(0)
+QuadflatRenderer::QuadflatRenderer() : quadsphere(1)
 {
 }
 
@@ -78,10 +78,13 @@ void QuadflatRenderer::Update(float deltaTime)
     std::vector<SDL_Vertex> vertices;
     std::vector<int> indices;
 
-    vertices.reserve(quadsphere.GetPoints().size());
-    indices.reserve(quadsphere.GetTriangles().size());
+    auto triangles = quadsphere.GetTriangles();
+    auto points = quadsphere.GetPoints();
 
-    for (const auto &point : quadsphere.GetPoints())
+    vertices.reserve(points.size());
+    indices.reserve(triangles.size());
+
+    for (const auto &point : points)
     {
         GlobeCoords coords = ToLatLon(point.point);
         SDL_FPoint uv = GlobeToUV(coords);
@@ -95,7 +98,7 @@ void QuadflatRenderer::Update(float deltaTime)
         vertices.push_back({{uv.x * 800, uv.y * 600}, color, {0, 0}});
     }
 
-    for (auto triangle : quadsphere.GetTriangles())
+    for (auto triangle : triangles)
     {
         if (OnSeam(triangle, vertices))
         {

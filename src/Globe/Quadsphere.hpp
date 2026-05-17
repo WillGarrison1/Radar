@@ -19,32 +19,37 @@ struct LatLonCoords
     ~LatLonCoords() = default;
 };
 
-struct XYKey
+struct XYZKey
 {
-    uint64_t data;
-    XYKey() = default;
-    XYKey(float x, float y)
+    static const int SCALE = 1000000;
+    int x, y, z;
+    XYZKey() = default;
+    XYZKey(float x, float y, float z) : x(std::round(x * SCALE)), y(std::round(y * SCALE)), z(std::round(z * SCALE))
     {
-        data = (static_cast<uint64_t>(std::bit_cast<uint32_t>(x)) << 32) |
-               (static_cast<uint64_t>(std::bit_cast<uint32_t>(y)));
     }
 
-    ~XYKey() = default;
+    ~XYZKey() = default;
 
-    constexpr bool operator==(const XYKey &other) const
+    constexpr bool operator==(const XYZKey &other) const
     {
-        return data == other.data;
+        return x == other.x && y == other.y && z == other.z;
     }
 };
 
 namespace std
 {
     template <>
-    struct hash<XYKey>
+    struct hash<XYZKey>
     {
-        std::size_t operator()(const XYKey &key) const
+        std::size_t operator()(const XYZKey &key) const
         {
-            return key.data;
+            std::size_t h = std::hash<int>()(key.x);
+
+            h ^= std::hash<int>()(key.y) + 0x9e3779b9 + (h << 6) + (h >> 2);
+
+            h ^= std::hash<int>()(key.z) + 0x9e3779b9 + (h << 6) + (h >> 2);
+
+            return h;
         }
     };
 }
@@ -68,7 +73,7 @@ struct QuadFace
     }
 };
 
-enum DominantCoord
+enum CubeFace : uint8_t
 {
     POSX,
     NEGX,
@@ -78,77 +83,39 @@ enum DominantCoord
     NEGZ
 };
 
+#pragma pack(1)
 struct QuadNode
 {
-    uint32_t subFaces[4];
-    uint32_t parent;
-    QuadFace face;
+    uint32_t subFacesStart;
+    uint32_t x, y;
+    uint8_t level;
+    CubeFace face;
 
     QuadNode() = default;
-    QuadNode(int a, int b, int c, int d) : subFaces({0}),
-                                           parent(0),
-                                           face({a, b, c, d}) {}
+    QuadNode(uint32_t x, uint32_t y, uint8_t level, CubeFace face) : subFacesStart(0),
+                                                                     x(x), y(y),
+                                                                     level(level), face(face)
+    {
+    }
 
     constexpr bool operator==(const QuadNode &other) const
     {
-        return other.face == face;
+        return other.x == x && other.y == y && other.level == level && other.face == face;
     }
 
-    void NormPointToUV(const glm::vec3 &p, float &u, float &v) const
+    inline void GetUV(float &uMin, float &uMax, float &vMin, float &vMax)
     {
-        auto x = std::abs(p.x);
-        auto y = std::abs(p.y);
-        auto z = std::abs(p.z);
+        float size = 1.0f / (1 << level);
 
-        DominantCoord dominant;
-
-        if (x >= y && x >= z)
-        {
-            dominant = (p.x >= 0) ? POSX : NEGX;
-        }
-        else if (y >= x && y >= z)
-        {
-            dominant = (p.y >= 0) ? POSY : NEGY;
-        }
-        else
-        {
-            dominant = (p.x >= 0) ? POSZ : NEGZ;
-        }
-
-        switch (dominant)
-        {
-        case POSX:
-            u = -p.z / x;
-            v = p.y / x;
-            break;
-        case NEGX:
-            u = p.z / x;
-            v = p.y / x;
-            break;
-        case POSY:
-            u = p.x / y;
-            v = p.z / y;
-            break;
-        case NEGY:
-            u = p.x / y;
-            v = -p.z / y;
-            break;
-        case POSZ:
-            u = -p.x / z;
-            v = p.y / z;
-        case NEGZ:
-            u = p.x / z;
-            v = p.y / z;
-            break;
-        default:
-            u = v = 0;
-            break;
-        }
-
-        u = (u + 1.0f) / 2.0f;
-        v = (v + 1.0f) / 2.0f;
+        uMin = x * size;
+        uMax = (x + 1) * size;
+        vMin = y * size;
+        vMax = (y + 1) * size;
     }
 };
+#pragma pack()
+
+static int s = sizeof(QuadNode);
 
 class Quadsphere
 {
@@ -161,7 +128,12 @@ public:
         return points;
     }
 
-    std::vector<Triangle> GetTriangles();
+    void UpdateGeometry();
+
+    std::vector<Triangle> &GetTriangles()
+    {
+        return triangles;
+    }
 
     void GetLeafFaces(QuadNode &face, std::vector<uint32_t> &leafs);
     QuadNode &GetFace(const glm::vec3 &point);
@@ -181,16 +153,17 @@ public:
     {
         if (quadNodes.size() <= index)
         {
-            throw std::runtime_error("Out of bounds index provided: " + index);
+            throw std::runtime_error("Out of bounds index provided: " + std::to_string(index));
         }
         return quadNodes.at(index);
     }
 
 private:
     inline glm::vec3 GetMidpoint(glm::vec3 a, glm::vec3 b);
-    QuadNode &GetChild(const QuadNode &nodes, glm::vec3 coordinates);
+    QuadNode &GetChild(QuadNode &nodes, float u, float v);
 
-    std::unordered_map<XYKey, int> indices;
+    std::unordered_map<XYZKey, int> indices;
     std::vector<PointValue> points;
     std::vector<QuadNode> quadNodes;
+    std::vector<Triangle> triangles;
 };

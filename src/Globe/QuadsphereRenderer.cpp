@@ -15,6 +15,15 @@ float AvgZ(const Triangle &triangle, const std::vector<PointValue> &points, glm:
 
 QuadsphereRenderer::QuadsphereRenderer() : cameraPos({0, 0, -2}), quadsphere(8)
 {
+    auto points = quadsphere.GetPoints();
+    auto &triangles = quadsphere.GetTriangles();
+
+    std::sort(triangles.begin(), triangles.end(), [&](const Triangle &a, const Triangle &b)
+              {
+                  float za = AvgZ(a, points, cameraPos);
+                  float zb = AvgZ(b, points, cameraPos);
+                  return za > zb; // furthest first
+              });
 }
 
 QuadsphereRenderer::~QuadsphereRenderer()
@@ -37,12 +46,12 @@ void QuadsphereRenderer::Update(float deltaTime)
 
     SDL_SetRenderDrawColorFloat(renderer, 0, 0, 1, 1);
 
-    auto points = quadsphere.GetPoints();
+    auto &points = quadsphere.GetPoints();
 
     std::vector<SDL_Vertex> vertices;
-    std::vector<int> indices;
+    vertices.reserve(points.size());
 
-    for (auto point : points)
+    for (auto &point : points)
     {
         SDL_FColor color{
             static_cast<float>(rand()) / static_cast<float>(RAND_MAX),
@@ -52,21 +61,8 @@ void QuadsphereRenderer::Update(float deltaTime)
         vertices.push_back(vert);
     }
 
-    auto triangles = quadsphere.GetTriangles();
-
-    std::sort(triangles.begin(), triangles.end(), [&](const Triangle &a, const Triangle &b)
-              {
-                  float za = AvgZ(a, points, cameraPos);
-                  float zb = AvgZ(b, points, cameraPos);
-                  return za > zb; // furthest first
-              });
-
-    for (auto triangle : triangles)
-    {
-        indices.insert(indices.end(), {triangle.v1, triangle.v2, triangle.v3});
-    }
-
-    SDL_RenderGeometry(renderer, nullptr, vertices.data(), vertices.size(), indices.data(), indices.size());
+    auto &triangles = quadsphere.GetTriangles();
+    SDL_RenderGeometry(renderer, nullptr, vertices.data(), vertices.size(), reinterpret_cast<int *>(triangles.data()), triangles.size() * 3);
 
     SDL_RenderPresent(renderer);
     HandleEvents();
